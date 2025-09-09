@@ -1,0 +1,37 @@
+/* TipTap Editor Styles */
+.ProseMirror {
+  outline: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 20px;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+.ProseMirror p {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.ProseMirror:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Ensure cursor is visible */
+.ProseMirror-focused {
+  outline: none !important;
+}
+
+/* Make sure the editor is clickable when editing */
+.ProseMirror[contenteditable="true"] {
+  cursor: text;
+}
+
+.ProseMirror[contenteditable="false"] {
+  cursor: default;
+  pointer-events: none;
+}

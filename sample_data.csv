@@ -1,0 +1,11 @@
+Product,Category,Region,Sales_Units,Revenue,Year
+Laptop,Electronics,North,450,67500.50,2023
+Phone,Electronics,South,320,32000.00,2023
+Tablet,Electronics,West,280,28000.00,2023
+Laptop,Electronics,South,380,57000.00,2023
+Phone,Electronics,North,520,52000.00,2023
+Tablet,Electronics,East,195,19500.00,2023
+Monitor,Electronics,North,150,22500.00,2023
+Keyboard,Electronics,South,890,8900.00,2023
+Mouse,Electronics,West,1200,12000.00,2023
+Headphones,Electronics,East,340,17000.00,2023
