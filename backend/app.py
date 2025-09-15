@@ -292,6 +292,8 @@ def _same_measure_diff_dims(spec1, spec2):
     return (len(common_measures) == 1) and (spec1["dimensions"] != spec2["dimensions"]) and (len(spec1["dimensions"]) > 0 or len(spec2["dimensions"]) > 0)
 
 
+
+
 # -----------------------
 # Routes
 # -----------------------
@@ -513,7 +515,7 @@ async def fuse(req: FuseRequest):
     # Case A: Same Dimension + Different Measures
     if _same_dim_diff_measures(c1, c2):
         dims = c1["dimensions"]
-        measures = sorted(list(set(c1["measures"]) | set(c2["measures"])) )
+        measures = sorted(list(set(c1["measures"]) | set(c2["measures"])))
         agg = _pick_agg(c1, c2)
         fused_table = _agg(df, dims, measures, agg).copy()
         strategy = {
@@ -534,26 +536,15 @@ async def fuse(req: FuseRequest):
         dim2 = c2["dimensions"][0] if c2["dimensions"] else None
         
         if dim1 and dim2:
-            # Create cross-tabulation (pivot table) for heatmap
-            # Group by both dimensions and aggregate the measure
-            pivot_data = df.groupby([dim1, dim2])[common_measure].agg(agg).reset_index()
-            pivot_table = pivot_data.pivot(index=dim1, columns=dim2, values=common_measure).fillna(0)
-            
-            # Convert to format suitable for Plotly heatmap
-            fused_table = {
-                "x": list(pivot_table.columns),  # dim2 values (x-axis)
-                "y": list(pivot_table.index),    # dim1 values (y-axis)  
-                "z": pivot_table.values.tolist(), # measure values (color intensity)
-                "dim1": dim1,
-                "dim2": dim2,
-                "measure": common_measure
-            }
+            # Simple approach: Just aggregate by both dimensions 
+            # This gives us regular row-based data that's easy to work with
+            fused_table = df.groupby([dim1, dim2])[common_measure].agg(agg).reset_index().to_dict('records')
             
             strategy = {
-                "type": "same-measure-different-dimensions-heatmap",
-                "suggestion": "heatmap | pivot-table"
+                "type": "same-measure-different-dimensions-stacked",
+                "suggestion": "stacked-bar | bubble-chart"  
             }
-            title = f"Heatmap: {common_measure} by {dim1} vs {dim2}"
+            title = f"Stacked Bar: {common_measure} by {dim1} vs {dim2}"
             dims_out = [dim1, dim2]
             measures_out = [common_measure]
         else:
@@ -619,7 +610,7 @@ async def fuse(req: FuseRequest):
     # Case D: Permissive same-dimension union of measures (robust fallback)
     elif len(set(c1.get("dimensions", [])).intersection(set(c2.get("dimensions", [])))) >= 1 and \
          len(set(c1.get("measures", [])).union(set(c2.get("measures", [])))) >= 2:
-        common_dims = list(set(c1["dimensions"]).intersection(set(c2["dimensions"])) )
+        common_dims = list(set(c1["dimensions"]).intersection(set(c2["dimensions"])))
         # Preserve original order using c1's order
         common_dims = [d for d in c1["dimensions"] if d in common_dims]
         measures = sorted(list(set(c1.get("measures", [])).union(set(c2.get("measures", [])))))
@@ -641,7 +632,10 @@ async def fuse(req: FuseRequest):
     
     # Handle different table formats (DataFrame vs dict for heatmap)
     if isinstance(fused_table, dict):
-        # Already a dict (heatmap case)
+        # Already a dict (old heatmap case - shouldn't happen anymore)
+        table_data = fused_table
+    elif isinstance(fused_table, list):
+        # Already a list of records (new stacked case)
         table_data = fused_table
     else:
         # DataFrame - convert to records

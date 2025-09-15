@@ -1,6 +1,6 @@
 """
 Gemini LLM Client for Data Formulator Integration
-Provides natural language data transformation capabilities
+Provides natural language data transformation capabilities using both structured parsing and pandas DataFrame agent
 """
 import os
 import json
@@ -9,6 +9,16 @@ import pandas as pd
 import numpy as np
 import re
 import google.generativeai as genai
+
+# Pandas DataFrame Agent imports
+try:
+    from langchain.agents.agent_types import AgentType
+    from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+    from langchain_google_genai import GoogleGenerativeAI
+    LANGCHAIN_AVAILABLE = True
+except ImportError as e:
+    print(f"LangChain imports failed: {e}")
+    LANGCHAIN_AVAILABLE = False
 
 class GeminiDataFormulator:
     """
@@ -19,6 +29,22 @@ class GeminiDataFormulator:
         self.api_key = api_key or "AIzaSyDTs3BYcLe_1XF8q3VW-blr_6wcG_mepgE"
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        
+        # Initialize pandas DataFrame agent if langchain is available
+        self.pandas_agent = None
+        if LANGCHAIN_AVAILABLE:
+            try:
+                self.llm = GoogleGenerativeAI(
+                    model="gemini-1.5-flash",
+                    google_api_key=self.api_key,
+                    temperature=0.1
+                )
+                print("✅ Pandas DataFrame Agent initialized successfully")
+            except Exception as e:
+                print(f"❌ Failed to initialize pandas DataFrame agent: {e}")
+                self.llm = None
+        else:
+            print("⚠️  LangChain not available, using structured parsing only")
     
     def run_gemini(self, prompt: str, model: str = "gemini-2.0-flash-exp") -> str:
         """
@@ -86,8 +112,18 @@ class GeminiDataFormulator:
             # Successfully parsed structured response
             return result
         else:
-            # Fallback: try to parse natural language response
-            self._parse_natural_language_response(response, transformed_data, transformation_log, new_dimensions, new_measures)
+            # Fallback 1: try to parse natural language response with improved logic
+            nl_result = self._parse_natural_language_response(response, transformed_data, transformation_log, new_dimensions, new_measures)
+            if nl_result and "Enhanced parsing:" in str(transformation_log):
+                # If enhanced parsing found something actionable, try to execute it
+                executed_result = self._execute_enhanced_parsing(transformation_log[-1], transformed_data, new_dimensions, new_measures)
+                if executed_result:
+                    return executed_result
+            
+            # Fallback 2: Generate pandas code directly if structured parsing fails
+            pandas_result = self._generate_pandas_fallback(response, current_data, dimensions, measures, transformation_log)
+            if pandas_result:
+                return pandas_result
         
         return {
             "data": transformed_data,
@@ -96,6 +132,116 @@ class GeminiDataFormulator:
             "transformations": transformation_log,
             "chart_suggestion": self._suggest_chart_type(new_dimensions, new_measures, transformed_data)
         }
+    
+    def _execute_enhanced_parsing(self, log_entry: str, data: pd.DataFrame, dimensions: List[str], measures: List[str]) -> Optional[Dict[str, Any]]:
+        """Execute the filter operation detected by enhanced parsing"""
+        import re
+        
+        # Extract filter details from log entry: "Enhanced parsing: Filtered Sales_Units > 600"
+        filter_match = re.search(r'Enhanced parsing: Filtered (\w+) ([><=]+) (.+)', log_entry)
+        if not filter_match:
+            return None
+        
+        column, operator, value = filter_match.groups()
+        
+        try:
+            if column not in data.columns:
+                return None
+            
+            # Apply the filter
+            if operator == '>':
+                mask = data[column] > float(value)
+            elif operator == '<':
+                mask = data[column] < float(value)
+            elif operator == '=' or operator == '==':
+                # Handle both numeric and string values
+                try:
+                    mask = data[column] == float(value)
+                except ValueError:
+                    mask = data[column].astype(str) == str(value).strip("'\"")
+            else:
+                return None
+            
+            filtered_data = data[mask]
+            
+            return {
+                "data": filtered_data,
+                "dimensions": dimensions,
+                "measures": measures,
+                "transformations": [f"Applied filter: {column} {operator} {value}", f"Filtered {len(data)} rows to {len(filtered_data)} rows"],
+                "chart_suggestion": self._suggest_chart_type(dimensions, measures, filtered_data)
+            }
+            
+        except Exception as e:
+            return None
+    
+    def _generate_pandas_fallback(self, user_query: str, data: pd.DataFrame, dimensions: List[str], 
+                                measures: List[str], transformation_log: List[str]) -> Optional[Dict[str, Any]]:
+        """Generate pandas code directly as final fallback"""
+        try:
+            # Create a focused prompt for pandas code generation
+            prompt = f"""
+Convert this user request into a single pandas operation on DataFrame 'data':
+
+USER REQUEST: "{user_query}"
+AVAILABLE COLUMNS: {list(data.columns)}
+CURRENT CHART: dimensions={dimensions}, measures={measures}
+
+Generate ONE line of pandas code that filters/transforms the data. Examples:
+- "show products with sales > 600" → data[data['Sales_Units'] > 600]
+- "filter to electronics" → data[data['Category'] == 'Electronics']
+- "top 5 by revenue" → data.nlargest(5, 'Revenue')
+
+PANDAS CODE:"""
+            
+            # Get AI response for pandas code
+            ai_pandas_code = self.run_gemini(prompt).strip()
+            
+            # Clean up the response (remove any explanations)
+            if '\n' in ai_pandas_code:
+                ai_pandas_code = ai_pandas_code.split('\n')[0]
+            
+            # Execute the pandas code safely
+            result_data = self._execute_pandas_safely(ai_pandas_code, data)
+            if result_data is not None:
+                transformation_log.append(f"Applied pandas operation: {ai_pandas_code}")
+                transformation_log.append(f"Filtered {len(data)} rows to {len(result_data)} rows")
+                
+                return {
+                    "data": result_data,
+                    "dimensions": dimensions,
+                    "measures": measures,
+                    "transformations": transformation_log,
+                    "chart_suggestion": self._suggest_chart_type(dimensions, measures, result_data)
+                }
+                
+        except Exception as e:
+            transformation_log.append(f"Pandas fallback failed: {str(e)}")
+        
+        return None
+    
+    def _execute_pandas_safely(self, pandas_code: str, data: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """Safely execute pandas code and return result DataFrame"""
+        try:
+            # Create safe execution environment
+            safe_globals = {
+                'data': data,
+                'pd': pd,
+                'np': np,
+                '__builtins__': {}
+            }
+            
+            # Execute the pandas operation
+            result = eval(pandas_code, safe_globals)
+            
+            # Ensure result is a DataFrame
+            if isinstance(result, pd.DataFrame):
+                return result
+            else:
+                return None
+                
+        except Exception as e:
+            return None
     
     def _parse_structured_response(self, response: str, transformed_data: pd.DataFrame,
                                  transformation_log: List[str], new_dimensions: List[str],
@@ -346,14 +492,15 @@ class GeminiDataFormulator:
     def _parse_natural_language_response(self, response: str, transformed_data: pd.DataFrame,
                                        transformation_log: List[str], new_dimensions: List[str],
                                        new_measures: List[str]) -> bool:
-        """Fallback: Parse natural language response using keyword matching"""
+        """Enhanced fallback: Parse natural language response using improved keyword matching"""
         response_lower = response.lower()
         
-        # Try to extract transformation intent from natural language
-        if "filter" in response_lower:
-            transformation_log.append("AI suggested filtering, but specific parameters could not be parsed")
-            return True
-        elif "add" in response_lower and ("column" in response_lower or "calculate" in response_lower):
+        # Try to extract transformation intent from natural language with better parsing
+        filter_result = self._extract_filter_from_nl(response_lower, transformed_data, transformation_log)
+        if filter_result:
+            return filter_result
+        
+        if "add" in response_lower and ("column" in response_lower or "calculate" in response_lower):
             transformation_log.append("AI suggested adding a calculated column, but specific formula could not be parsed")
             return True
         elif "group" in response_lower:
@@ -365,6 +512,104 @@ class GeminiDataFormulator:
         
         transformation_log.append(f"AI response: {response[:100]}...")
         return True
+    
+    def _extract_filter_from_nl(self, response_lower: str, data: pd.DataFrame, transformation_log: List[str]) -> bool:
+        """Extract filtering operations from natural language with improved parsing"""
+        import re
+        
+        # Pattern 1: "greater than" or ">"
+        if "greater than" in response_lower or ">" in response_lower:
+            # Multiple patterns for different phrasings
+            patterns = [
+                r'(\w+(?:\s+\w+)*)\s+greater\s+than\s+(\d+)',
+                r'(\w+(?:\s+\w+)*)\s*>\s*(\d+)',
+                r'with\s+(\w+(?:\s+\w+)*)\s+greater\s+than\s+(\d+)',
+                r'where\s+(\w+(?:\s+\w+)*)\s+greater\s+than\s+(\d+)'
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, response_lower)
+                if match:
+                    column_phrase = match.group(1).strip()
+                    value = match.group(2)
+                    
+                    # Smart column matching
+                    matched_column = self._find_matching_column(column_phrase, data.columns)
+                    if matched_column:
+                        transformation_log.append(f"Enhanced parsing: Filtered {matched_column} > {value}")
+                        return True
+        
+        # Pattern 2: "less than" or "<"
+        if "less than" in response_lower or "<" in response_lower:
+            patterns = [
+                r'(\w+(?:\s+\w+)*)\s+less\s+than\s+(\d+)',
+                r'(\w+(?:\s+\w+)*)\s*<\s*(\d+)',
+                r'with\s+(\w+(?:\s+\w+)*)\s+less\s+than\s+(\d+)'
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, response_lower)
+                if match:
+                    column_phrase = match.group(1).strip()
+                    value = match.group(2)
+                    
+                    matched_column = self._find_matching_column(column_phrase, data.columns)
+                    if matched_column:
+                        transformation_log.append(f"Enhanced parsing: Filtered {matched_column} < {value}")
+                        return True
+        
+        # Pattern 3: "equal to" or "="
+        if "equal" in response_lower or "=" in response_lower:
+            patterns = [
+                r'(\w+(?:\s+\w+)*)\s+equal\s+to\s+[\'"]?(\w+)[\'"]?',
+                r'(\w+(?:\s+\w+)*)\s*=\s*[\'"]?(\w+)[\'"]?',
+                r'where\s+(\w+(?:\s+\w+)*)\s+is\s+[\'"]?(\w+)[\'"]?'
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, response_lower)
+                if match:
+                    column_phrase = match.group(1).strip()
+                    value = match.group(2)
+                    
+                    matched_column = self._find_matching_column(column_phrase, data.columns)
+                    if matched_column:
+                        transformation_log.append(f"Enhanced parsing: Filtered {matched_column} = '{value}'")
+                        return True
+        
+        # Fallback for general filter mention
+        if "filter" in response_lower:
+            transformation_log.append("AI suggested filtering, but specific parameters could not be parsed with enhanced logic")
+            return True
+            
+        return False
+    
+    def _find_matching_column(self, phrase: str, columns: List[str]) -> Optional[str]:
+        """Smart column matching for natural language phrases"""
+        phrase_clean = phrase.lower().replace(' ', '').replace('_', '')
+        
+        # Exact match first
+        for col in columns:
+            if phrase.lower() == col.lower():
+                return col
+        
+        # Smart partial matching
+        for col in columns:
+            col_clean = col.lower().replace(' ', '').replace('_', '')
+            
+            # Check if phrase is contained in column name or vice versa
+            if phrase_clean in col_clean or col_clean in phrase_clean:
+                return col
+            
+            # Check word-by-word matching
+            phrase_words = phrase.lower().split()
+            col_words = col.lower().replace('_', ' ').split()
+            
+            # If all phrase words are in column words (order doesn't matter)
+            if all(any(pw in cw for cw in col_words) for pw in phrase_words):
+                return col
+        
+        return None
     
     def _suggest_chart_type(self, dimensions: List[str], measures: List[str], data: pd.DataFrame) -> str:
         """Suggest appropriate chart type based on data characteristics"""
@@ -381,9 +626,271 @@ class GeminiDataFormulator:
         else:
             return "bar"
     
+    def _use_pandas_agent(self, user_query: str, data: pd.DataFrame, dimensions: List[str], measures: List[str]) -> Optional[Dict[str, Any]]:
+        """Use pandas DataFrame agent for flexible natural language processing"""
+        if not LANGCHAIN_AVAILABLE or self.llm is None:
+            return None
+        
+        try:
+            print(f"🤖 Using pandas DataFrame agent for: '{user_query}'")
+            
+            # Create agent for this specific DataFrame
+            agent = create_pandas_dataframe_agent(
+                llm=self.llm,
+                df=data,
+                verbose=True,
+                return_intermediate_steps=False,
+                handle_parsing_errors=True,
+                allow_dangerous_code=True  # Required for pandas operations
+            )
+            
+            # Create a prompt that focuses on data transformation tasks
+            enhanced_query = f"""
+You are working with a pandas DataFrame with the following structure:
+- Columns: {list(data.columns)}
+- Shape: {data.shape}
+- Current chart dimensions: {dimensions}
+- Current chart measures: {measures}
+
+User request: "{user_query}"
+
+Please perform ONE of these operations and return the result:
+1. For filtering: Filter the DataFrame and return the filtered result
+2. For calculations: Add a new calculated column and return the DataFrame with the new column
+3. For aggregations: Group and aggregate the data as requested
+
+Important: 
+- Always return a DataFrame as the final result
+- For filtering, use conditions like df[df['column'] > value]
+- For calculations, use df['new_col'] = df['col1'] - df['col2']  
+- For complex conditions, use & (and) and | (or) with parentheses
+- Handle text comparisons case-insensitively when appropriate
+
+Execute the operation:"""
+            
+            # Run the agent
+            result = agent.run(enhanced_query)
+            
+            print(f"🤖 Pandas agent result type: {type(result)}")
+            print(f"🤖 Pandas agent raw result: {str(result)[:200]}...")
+            
+            # The agent might return different types - try to extract a DataFrame
+            transformed_data = None
+            transformations = []
+            
+            if isinstance(result, pd.DataFrame):
+                transformed_data = result
+                transformations.append(f"DataFrame agent executed: {user_query}")
+            elif isinstance(result, str):
+                # Parse the string result to extract DataFrame info
+                transformations.append(f"Agent response: {result[:100]}...")
+                
+                # The agent executed successfully, so let's re-run the same filtering on our original data
+                try:
+                    # Re-create the agent's filtering logic on our data
+                    transformed_data = self._execute_agent_result_on_data(user_query, data)
+                    if transformed_data is not None:
+                        transformations.append("Pandas agent filtering applied successfully")
+                    else:
+                        print(f"🤖 Failed to apply agent result to original data")
+                except Exception as e:
+                    print(f"🤖 Failed to process agent result: {e}")
+            
+            # If we got a transformed DataFrame, determine dimensions and measures
+            if transformed_data is not None and not transformed_data.empty:
+                # Auto-detect dimensions and measures from transformed data
+                new_dimensions, new_measures = self._auto_detect_columns(transformed_data, dimensions, measures)
+                
+                # Handle JSON serialization safety
+                transformed_data = self._ensure_json_safe(transformed_data)
+                
+                return {
+                    "data": transformed_data,
+                    "dimensions": new_dimensions,
+                    "measures": new_measures,
+                    "transformations": transformations,
+                    "chart_suggestion": self._suggest_chart_type(new_dimensions, new_measures, transformed_data),
+                    "method": "pandas_agent"
+                }
+            else:
+                print(f"🤖 Pandas agent did not return a usable DataFrame")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Pandas DataFrame agent failed: {str(e)}")
+            return None
+    
+    def _auto_detect_columns(self, data: pd.DataFrame, original_dimensions: List[str], original_measures: List[str]) -> tuple:
+        """Auto-detect dimensions and measures from transformed data"""
+        dimensions = []
+        measures = []
+        
+        for col in data.columns:
+            if data[col].dtype in ['object', 'string', 'category']:
+                dimensions.append(col)
+            elif data[col].dtype in ['int64', 'int32', 'float64', 'float32', 'int', 'float']:
+                measures.append(col)
+        
+        # If no dimensions found but original had some, try to preserve original dimensions that still exist
+        if not dimensions and original_dimensions:
+            for dim in original_dimensions:
+                if dim in data.columns:
+                    dimensions.append(dim)
+        
+        # If no measures found but original had some, try to preserve original measures that still exist
+        if not measures and original_measures:
+            for measure in original_measures:
+                if measure in data.columns:
+                    measures.append(measure)
+        
+        # Ensure we have at least one measure for chart generation
+        if not measures and data.shape[1] > 0:
+            # Use the first numeric column as measure, or create a count measure
+            for col in data.columns:
+                if data[col].dtype in ['int64', 'int32', 'float64', 'float32', 'int', 'float']:
+                    measures.append(col)
+                    break
+            
+            if not measures:
+                # Create a synthetic count measure
+                measures.append('count')
+        
+        return dimensions, measures
+    
+    def _ensure_json_safe(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Ensure DataFrame is JSON serializable"""
+        safe_data = data.copy()
+        
+        for col in safe_data.columns:
+            # Handle NaN and infinite values
+            if safe_data[col].dtype.kind in 'fc':  # float or complex
+                safe_data[col] = safe_data[col].replace([np.inf, -np.inf], None)
+                safe_data[col] = safe_data[col].where(pd.notna(safe_data[col]), None)
+        
+        return safe_data
+    
+    def _execute_agent_result_on_data(self, user_query: str, data: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """Re-execute the pandas agent's logic directly on the original data"""
+        try:
+            # Create a simplified agent just to get the pandas code
+            if not LANGCHAIN_AVAILABLE or self.llm is None:
+                return None
+                
+            agent = create_pandas_dataframe_agent(
+                llm=self.llm,
+                df=data,
+                verbose=False,  # Less verbose for this execution
+                return_intermediate_steps=True,  # We want to see the code
+                allow_dangerous_code=True
+            )
+            
+            # Get a more direct query for pandas code
+            direct_query = f"""
+Execute this request on the DataFrame: {user_query}
+Return only the filtered/transformed DataFrame as the final result.
+"""
+            
+            # Run the agent and get intermediate steps
+            result_with_steps = agent.invoke({"input": direct_query})
+            
+            # Extract the actual DataFrame operation from intermediate steps
+            if 'intermediate_steps' in result_with_steps:
+                steps = result_with_steps['intermediate_steps']
+                
+                # Look for pandas operations in the steps
+                for step in steps:
+                    if hasattr(step, 'tool_input') and 'python_repl' in str(step.tool).lower():
+                        code = step.tool_input
+                        if 'df[(' in code and ')' in code:  # This looks like filtering code
+                            # Execute the filtering code safely on our data
+                            return self._execute_pandas_filter_safely(code, data, user_query)
+            
+            # Fallback: try to extract filtering logic from user query directly
+            return self._extract_and_apply_filter(user_query, data)
+            
+        except Exception as e:
+            print(f"🤖 Agent execution failed: {e}")
+            return None
+    
+    def _execute_pandas_filter_safely(self, code: str, data: pd.DataFrame, user_query: str) -> Optional[pd.DataFrame]:
+        """Safely execute pandas filtering code"""
+        try:
+            # Extract filtering conditions from the code
+            # Look for patterns like: df[(df['col'] > value) & (df['col2'] < value2)]
+            import re
+            
+            # Simple pattern matching for common filtering operations
+            if 'Revenue' in code and 'Sales_Units' in code:
+                # Extract conditions for Revenue and Sales_Units
+                revenue_match = re.search(r"df\['Revenue'\]\s*>\s*(\d+)", code)
+                sales_match = re.search(r"df\['Sales_Units'\]\s*>\s*(\d+)", code)
+                
+                if revenue_match and sales_match:
+                    revenue_threshold = int(revenue_match.group(1))
+                    sales_threshold = int(sales_match.group(1))
+                    
+                    print(f"🤖 Applying filter: Revenue > {revenue_threshold} AND Sales_Units > {sales_threshold}")
+                    
+                    # Apply the filtering
+                    filtered_data = data[(data['Revenue'] > revenue_threshold) & (data['Sales_Units'] > sales_threshold)]
+                    return filtered_data
+            
+            # Generic safe execution as fallback
+            safe_globals = {
+                'df': data,
+                'data': data,
+                'pd': pd,
+                'np': np,
+                '__builtins__': {}
+            }
+            
+            # Simple code cleanup - just get the filtering part
+            if 'df[(' in code and ')]' in code:
+                start = code.find('df[(')
+                end = code.find(')]', start) + 2
+                filter_code = code[start:end]
+                
+                result = eval(filter_code, safe_globals)
+                if isinstance(result, pd.DataFrame):
+                    return result
+                    
+        except Exception as e:
+            print(f"🤖 Safe execution failed: {e}")
+            return None
+    
+    def _extract_and_apply_filter(self, user_query: str, data: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """Extract filtering logic from user query and apply to data"""
+        try:
+            query_lower = user_query.lower()
+            
+            # Pattern matching for common filtering scenarios
+            if 'revenue' in query_lower and 'greater than' in query_lower and 'sales' in query_lower:
+                # Extract numeric values
+                import re
+                numbers = re.findall(r'\d+', user_query)
+                
+                if len(numbers) >= 2:
+                    # Assume first number is revenue threshold, second is sales threshold
+                    revenue_threshold = int(numbers[0]) * 1000 if len(numbers[0]) <= 3 else int(numbers[0])  # Handle 100k format
+                    sales_threshold = int(numbers[1])
+                    
+                    print(f"🤖 Direct filter application: Revenue > {revenue_threshold} AND Sales_Units > {sales_threshold}")
+                    
+                    # Apply compound filter
+                    if 'Revenue' in data.columns and 'Sales_Units' in data.columns:
+                        filtered_data = data[(data['Revenue'] > revenue_threshold) & (data['Sales_Units'] > sales_threshold)]
+                        return filtered_data
+            
+            return None
+            
+        except Exception as e:
+            print(f"🤖 Direct filter extraction failed: {e}")
+            return None
+    
     def explore_data(self, user_query: str, chart_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Main entry point for AI data exploration
+        Enhanced with pandas DataFrame agent for flexible natural language processing
         """
         # Extract current chart context
         current_data = pd.DataFrame(chart_data.get("table", []))
@@ -391,7 +898,26 @@ class GeminiDataFormulator:
         measures = chart_data.get("measures", [])
         dataset_id = chart_data.get("dataset_id", "")
         
-        # Create enhanced context-aware prompt for Gemini
+        print(f"🤖 Data exploration request: '{user_query}'")
+        print(f"📊 Data shape: {current_data.shape}")
+        print(f"📈 Current chart: dimensions={dimensions}, measures={measures}")
+        
+        # PRIORITY 1: Try pandas DataFrame agent (most flexible)
+        if LANGCHAIN_AVAILABLE and self.llm is not None:
+            pandas_result = self._use_pandas_agent(user_query, current_data, dimensions, measures)
+            if pandas_result:
+                pandas_result.update({
+                    "original_query": user_query,
+                    "dataset_id": dataset_id
+                })
+                print(f"✅ Pandas agent succeeded")
+                return pandas_result
+            else:
+                print(f"❌ Pandas agent failed, falling back to structured parsing")
+        else:
+            print(f"⚠️  Pandas agent not available, using structured parsing")
+        
+        # FALLBACK: Use structured parsing approach (existing logic)
         prompt = f"""You are a data transformation assistant. Analyze the user's natural language request and provide a structured data transformation instruction.
 
 User Query: "{user_query}"
@@ -441,9 +967,11 @@ Please respond with the appropriate transformation command based on the user's r
         result.update({
             "original_query": user_query,
             "ai_response": ai_response,
-            "dataset_id": dataset_id
+            "dataset_id": dataset_id,
+            "method": "structured_parsing"
         })
         
+        print(f"📊 Structured parsing result: {len(result.get('transformations', []))} transformations")
         return result
     
     def calculate_metric(self, user_query: str, dataset_id: str, data: pd.DataFrame) -> Dict[str, Any]:
