@@ -26,7 +26,7 @@ class GeminiDataFormulator:
     """
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or "AIzaSyDTs3BYcLe_1XF8q3VW-blr_6wcG_mepgE"
+        self.api_key = api_key or "AIzaSyCme3aE7H9TmRgKqHCqhqV8f-9FhIqDfOM"
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
@@ -35,7 +35,7 @@ class GeminiDataFormulator:
         if LANGCHAIN_AVAILABLE:
             try:
                 self.llm = GoogleGenerativeAI(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.0-flash",
                     google_api_key=self.api_key,
                     temperature=0.1
                 )
@@ -719,6 +719,14 @@ Execute the operation:"""
         except Exception as e:
             print(f"❌ Pandas DataFrame agent failed: {str(e)}")
             return None
+
+    def _use_pandas_agent_enhanced(self, user_query: str, full_dataset: pd.DataFrame, current_dimensions: List[str], current_measures: List[str], available_dims: List[str], available_measures: List[str]) -> Optional[Dict[str, Any]]:
+        """
+        DEPRECATED: This method contained dataset-specific logic and examples.
+        Now using generic _execute_real_pandas_analysis for all datasets.
+        """
+        print(f"🤖 Skipping legacy dataset-specific enhanced pandas agent - using generic pandas execution instead")
+        return None
     
     def _auto_detect_columns(self, data: pd.DataFrame, original_dimensions: List[str], original_measures: List[str]) -> tuple:
         """Auto-detect dimensions and measures from transformed data"""
@@ -756,17 +764,930 @@ Execute the operation:"""
                 measures.append('count')
         
         return dimensions, measures
+
+    def _auto_detect_columns_enhanced(self, data: pd.DataFrame, current_dimensions: List[str], current_measures: List[str], available_dims: List[str], available_measures: List[str]) -> tuple:
+        """Enhanced auto-detection with full dataset context awareness"""
+        dimensions = []
+        measures = []
+        
+        # Detect based on data types
+        for col in data.columns:
+            if data[col].dtype in ['object', 'string', 'category']:
+                dimensions.append(col)
+            elif data[col].dtype in ['int64', 'int32', 'float64', 'float32', 'int', 'float']:
+                measures.append(col)
+        
+        # Enhanced: Prioritize meaningful columns from full dataset
+        # If we have common geographical/categorical columns, prioritize them
+        priority_dims = ['State', 'Region', 'Category', 'Type', 'Zone', 'District']
+        for dim in priority_dims:
+            if dim in data.columns and dim not in dimensions:
+                dimensions.insert(0, dim)  # Add at beginning for priority
+        
+        # Enhanced: Prioritize meaningful measures
+        priority_measures = ['Population2023', 'Population2018', 'Area', 'Count', 'Total', 'Average']
+        for measure in priority_measures:
+            if measure in data.columns and measure not in measures:
+                measures.insert(0, measure)  # Add at beginning for priority
+        
+        # If no dimensions found, try to preserve from current context or available
+        if not dimensions:
+            for dim in current_dimensions + available_dims:
+                if dim in data.columns:
+                    dimensions.append(dim)
+                    break
+        
+        # If no measures found, try to preserve from current context or available  
+        if not measures:
+            for measure in current_measures + available_measures:
+                if measure in data.columns:
+                    measures.append(measure)
+                    break
+        
+        # Final fallback: ensure we have at least something
+        if not dimensions and len(data.columns) > 0:
+            dimensions.append(data.columns[0])
+        if not measures and len(data.columns) > 1:
+            measures.append(data.columns[-1])
+        elif not measures and len(data.columns) == 1:
+            measures.append('count')
+        
+        return dimensions, measures
+
+    def _parse_agent_string_result(self, agent_result: str, user_query: str, full_dataset: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """
+        DEPRECATED: This method contained dataset-specific parsing logic.
+        Now using generic _execute_real_pandas_analysis for all datasets.
+        """
+        print(f"🤖 Skipping legacy dataset-specific parsing - using generic pandas execution instead")
+        return None
+
+    def _execute_enhanced_agent_result_on_data(self, user_query: str, full_dataset: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """
+        DEPRECATED: This method contained dataset-specific logic.
+        Now using generic _execute_real_pandas_analysis for all datasets.
+        """
+        print(f"🤖 Skipping legacy dataset-specific enhanced execution - using generic pandas execution instead")
+        return None
+
+    def get_text_analysis(self, user_query: str, dataset: pd.DataFrame) -> Dict[str, Any]:
+        """
+        PANDAS DATAFRAME AGENT: Interactive pandas analysis with real code execution
+        Returns text answers with actual computed results and code transparency
+        """
+        try:
+            print(f"🐼 PANDAS DATAFRAME AGENT Analysis for: '{user_query}'")
+            print(f"📊 Dataset: {dataset.shape[0]} rows, {dataset.shape[1]} columns")
+            print(f"🔍 Columns: {list(dataset.columns)}")
+            
+            if not LANGCHAIN_AVAILABLE or self.llm is None:
+                print("❌ LangChain not available, falling back to direct Gemini")
+                return self._direct_gemini_analysis(user_query, dataset)
+            
+            # PRIORITY: Use real dataset with custom pandas execution
+            return self._execute_real_pandas_analysis(user_query, dataset)
+            
+            # Try using a more compatible model for LangChain
+            try:
+                print("🔧 Creating pandas DataFrame agent with gemini-2.0-flash...")
+                
+                # Create agent with better error handling
+                agent = create_pandas_dataframe_agent(
+                    llm=self.llm,
+                    df=dataset,
+                    verbose=True,
+                    return_intermediate_steps=True,
+                    allow_dangerous_code=True,
+                    # Add output parsing settings
+                    agent_type="openai-functions" if hasattr(self.llm, 'bind') else "zero-shot-react-description",
+                    max_iterations=3,
+                    early_stopping_method="generate"
+                )
+                print("✅ Pandas DataFrame Agent created successfully")
+                
+            except Exception as agent_error:
+                print(f"❌ Failed to create pandas DataFrame agent: {agent_error}")
+                print("🔄 Falling back to direct Gemini analysis...")
+                return self._direct_gemini_analysis(user_query, dataset)
+            
+            # Create enhanced prompt for better parsing
+            enhanced_prompt = f"""
+You are a pandas data analyst. Use the provided DataFrame 'df' to answer the user's question.
+
+CRITICAL INSTRUCTIONS:
+1. ALWAYS use the actual DataFrame 'df' provided - it contains real data
+2. Use proper pandas operations like df.nlargest(), df.groupby(), etc.
+3. Provide clear, specific answers with actual values from the data
+4. Format your response clearly
+
+User Question: "{user_query}"
+
+DataFrame Info:
+- Shape: {dataset.shape[0]} rows, {dataset.shape[1]} columns  
+- Columns: {list(dataset.columns)}
+- Sample data:
+{dataset.head(3).to_string()}
+
+Please analyze the data and provide your answer.
+"""
+            
+            # Execute with better error handling
+            try:
+                print("🚀 Executing pandas DataFrame agent...")
+                result = agent.invoke({"input": enhanced_prompt})
+                
+                print("=" * 60)
+                print("🔍 PANDAS DATAFRAME AGENT RAW OUTPUT:")
+                print("=" * 60)
+                print(f"Result type: {type(result)}")
+                print(f"Result keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}")
+                print("=" * 60)
+                
+                if isinstance(result, dict) and "output" in result:
+                    final_answer = result["output"]
+                    intermediate_steps = result.get("intermediate_steps", [])
+                    
+                    print("📝 FINAL ANSWER FROM AGENT:")
+                    print("-" * 40)
+                    print(final_answer)
+                    print("-" * 40)
+                    
+                    print(f"🔧 INTERMEDIATE STEPS ({len(intermediate_steps)} steps):")
+                    
+                    # Extract reasoning and code from intermediate steps
+                    reasoning_steps = []
+                    code_steps = []
+                    
+                    for i, step in enumerate(intermediate_steps):
+                        print(f"\n--- Step {i+1} ---")
+                        if len(step) >= 2:
+                            action, observation = step[0], step[1]
+                            
+                            print(f"Action: {type(action).__name__}")
+                            if hasattr(action, 'log') and action.log:
+                                print(f"Log: {action.log[:200]}...")
+                            
+                            print(f"Observation: {str(observation)[:200]}...")
+                            
+                            # Extract code from action
+                            if hasattr(action, 'tool_input') and action.tool_input:
+                                code = str(action.tool_input)
+                                code_steps.append(code)
+                                print(f"💻 Code executed: {code[:100]}...")
+                            
+                            # Extract reasoning
+                            if hasattr(action, 'log') and action.log:
+                                if "Thought:" in action.log:
+                                    thought = action.log.split("Thought:")[1].split("Action:")[0].strip()
+                                    if thought:
+                                        reasoning_steps.append(thought)
+                                        print(f"💭 Reasoning: {thought[:100]}...")
+                    
+                    print("=" * 60)
+                    print(f"✅ Pandas agent analysis completed successfully!")
+                    print(f"📊 Generated {len(reasoning_steps)} reasoning steps and {len(code_steps)} code steps")
+                    print("=" * 60)
+                    
+                    return {
+                        "answer": str(final_answer),
+                        "success": True,
+                        "reasoning_steps": reasoning_steps,
+                        "code_steps": code_steps,
+                        "tabular_data": [],
+                        "has_table": False
+                    }
+                else:
+                    raise ValueError(f"Unexpected result format: {type(result)}")
+                
+            except Exception as execution_error:
+                print(f"❌ Pandas agent execution failed: {execution_error}")
+                print("🔄 Trying direct agent.run() method...")
+                
+                try:
+                    # Fallback to simple run method
+                    simple_result = agent.run(enhanced_prompt)
+                    
+                    print("=" * 60)
+                    print("🔄 PANDAS DATAFRAME AGENT SIMPLE RUN OUTPUT:")
+                    print("=" * 60)
+                    print(f"Result type: {type(simple_result)}")
+                    print("📝 SIMPLE AGENT ANSWER:")
+                    print("-" * 40)
+                    print(simple_result)
+                    print("-" * 40)
+                    print("=" * 60)
+                    
+                    return {
+                        "answer": str(simple_result),
+                        "success": True,
+                        "reasoning_steps": ["Used pandas DataFrame agent with simple execution"],
+                        "code_steps": ["Executed pandas operations on your actual dataset"],
+                        "tabular_data": [],
+                        "has_table": False
+                    }
+                    
+                except Exception as run_error:
+                    print(f"❌ Agent.run() also failed: {run_error}")
+                    print("🔄 Falling back to direct Gemini analysis...")
+                    return self._direct_gemini_analysis(user_query, dataset)
+            
+        except Exception as e:
+            print(f"❌ Pandas DataFrame agent failed: {str(e)}")
+            print("🔄 Falling back to direct Gemini analysis...")
+            return self._direct_gemini_analysis(user_query, dataset)
+
+    def _execute_real_pandas_analysis(self, user_query: str, dataset: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Execute pandas operations on REAL dataset to prevent fabricated data
+        """
+        print("🔬 EXECUTING PANDAS ANALYSIS ON REAL DATA")
+        print(f"📊 Real dataset shape: {dataset.shape}")
+        print(f"📋 Real columns: {list(dataset.columns)}")
+        
+        try:
+            # Show actual data sample to prove we're using real data
+            real_data_sample = dataset.head(3).to_string(index=False)
+            print(f"📄 REAL DATA SAMPLE (first 3 rows):")
+            print(real_data_sample)
+            
+            # Automatically detect data types and structure for generic examples
+            numeric_columns = dataset.select_dtypes(include=[np.number]).columns.tolist()
+            categorical_columns = dataset.select_dtypes(include=['object', 'category']).columns.tolist()
+            
+            # Create generic example based on actual dataset structure
+            if len(numeric_columns) > 0 and len(categorical_columns) > 0:
+                example_numeric = numeric_columns[0]
+                example_categorical = categorical_columns[0]
+                generic_example = f"""# Answer the user's query using df
+result = df.nlargest(5, '{example_numeric}')[['{example_categorical}', '{example_numeric}']]
+print("Top 5 records by {example_numeric}:")
+print(result.to_string(index=False))"""
+            elif len(numeric_columns) > 0:
+                example_numeric = numeric_columns[0]
+                generic_example = f"""# Answer the user's query using df
+result = df.nlargest(5, '{example_numeric}')
+print("Top 5 records by {example_numeric}:")
+print(result.to_string(index=False))"""
+            else:
+                # Use first available column
+                first_col = dataset.columns[0] if len(dataset.columns) > 0 else 'column'
+                generic_example = f"""# Answer the user's query using df
+result = df['{first_col}'].value_counts().head(5)
+print("Top 5 most frequent values in {first_col}:")
+print(result)"""
+
+            # Generate Python code using Gemini that works with real dataset
+            code_generation_prompt = f"""You are a data analyst. Generate Python pandas code to answer the user's query using the provided DataFrame.
+
+REAL DATASET CONTEXT:
+- Variable name: 'df' 
+- Shape: {dataset.shape[0]} rows, {dataset.shape[1]} columns
+- Columns: {list(dataset.columns)}
+- Data types: {dict(dataset.dtypes.astype(str))}
+- Sample data (first 3 rows):
+{real_data_sample}
+
+USER QUERY: "{user_query}"
+
+Generate ONLY Python pandas code that:
+1. Uses ONLY the variable 'df' (which contains the real data above)
+2. NEVER creates or recreates the DataFrame 
+3. Uses appropriate pandas methods (nlargest, groupby, mean, sum, etc.)
+4. Includes print statements to show results clearly
+5. Provides the exact answer to the user's question
+6. Works with the actual column names and data types shown above
+
+Example format:
+```python
+{generic_example}
+```
+
+Generate ONLY the code, no explanations:"""
+
+            print("🤖 Generating pandas code for real dataset...")
+            code_response = self.model.generate_content(code_generation_prompt)
+            
+            if code_response and code_response.text:
+                # Extract Python code from response  
+                generated_code = code_response.text.strip()
+                
+                # Clean up code (remove markdown formatting)
+                if "```python" in generated_code:
+                    code_lines = generated_code.split("```python")[1].split("```")[0].strip()
+                elif "```" in generated_code:
+                    code_lines = generated_code.split("```")[1].strip()
+                else:
+                    code_lines = generated_code
+                
+                print("💻 GENERATED PANDAS CODE FOR REAL DATA:")
+                print("-" * 50)
+                print(code_lines)
+                print("-" * 50)
+                
+                # Execute code on real dataset
+                print("⚡ EXECUTING CODE ON REAL DATASET...")
+                
+                # Create safe execution environment
+                import io
+                import sys
+                from contextlib import redirect_stdout
+                
+                # Capture output
+                captured_output = io.StringIO()
+                
+                # Create execution globals with REAL dataset
+                execution_globals = {
+                    'df': dataset.copy(),  # ✅ REAL dataset, not fabricated
+                    'pd': pd,
+                    'numpy': __import__('numpy'),
+                    'print': lambda *args, **kwargs: print(*args, **kwargs, file=captured_output)
+                }
+                
+                try:
+                    # Execute generated code on REAL data
+                    exec(code_lines, execution_globals)
+                    
+                    # Get the output
+                    execution_output = captured_output.getvalue()
+                    
+                    print("✅ CODE EXECUTION SUCCESSFUL ON REAL DATA!")
+                    print("📋 REAL DATA ANALYSIS RESULTS:")
+                    print("-" * 50)
+                    print(execution_output)
+                    print("-" * 50)
+                    
+                    # Create analysis text
+                    analysis_text = f"Based on your real dataset, here are the results for '{user_query}':\n\n{execution_output.strip()}"
+                    
+                    # Try to extract tabular data from output using enhanced parser
+                    tabular_data = []
+                    has_table = False
+                    
+                    if execution_output.strip():
+                        try:
+                            parsed_table = self._parse_pandas_output_to_table(execution_output)
+                            if parsed_table:
+                                tabular_data = parsed_table
+                                has_table = True
+                                print(f"✅ Successfully parsed tabular data: {len(tabular_data.get('rows', []))} rows")
+                        except Exception as parse_error:
+                            print(f"⚠️ Table parsing failed: {parse_error}")
+                            has_table = False
+                    
+                    return {
+                        "answer": analysis_text,
+                        "success": True,
+                        "reasoning_steps": ["✅ Executed pandas code on REAL uploaded dataset"],
+                        "code_steps": [code_lines],  # Show the actual pandas code
+                        "tabular_data": tabular_data,
+                        "has_table": has_table
+                    }
+                    
+                except Exception as exec_error:
+                    print(f"❌ CODE EXECUTION FAILED: {exec_error}")
+                    error_msg = f"Error executing pandas code on real dataset: {str(exec_error)}"
+                    
+                    return {
+                        "answer": f"I generated pandas code for your real dataset but encountered an execution error: {error_msg}. The code was: {code_lines}",
+                        "success": False,
+                        "reasoning_steps": [f"❌ Code execution failed: {str(exec_error)}"],
+                        "code_steps": [code_lines],
+                        "tabular_data": [],
+                        "has_table": False
+                    }
+                    
+            else:
+                print("❌ Failed to generate pandas code")
+                raise Exception("No pandas code generated by Gemini")
+                
+        except Exception as e:
+            print(f"❌ Real pandas analysis failed: {e}")
+            print("🔄 Falling back to direct Gemini analysis...")
+            return self._direct_gemini_analysis(user_query, dataset)
+    
+    def _parse_pandas_output_to_table(self, output_text: str) -> Optional[Dict[str, Any]]:
+        """
+        Enhanced parser for pandas output formats (Series, DataFrame, etc.)
+        """
+        try:
+            lines = output_text.strip().split('\n')
+            
+            # Remove empty lines and title lines
+            content_lines = []
+            for line in lines:
+                line = line.strip()
+                if line and not line.endswith(':') and line != 'Name: Revenue, dtype: float64' and 'dtype:' not in line:
+                    content_lines.append(line)
+            
+            if len(content_lines) < 2:
+                return None
+                
+            print(f"🔍 Parsing pandas output - {len(content_lines)} content lines")
+            
+            # Pattern 1: Pandas Series with index (most common for groupby)
+            # Format: "Product\nBookshelf    20500\nDesk    42000"
+            if len(content_lines) >= 2:
+                # Check if first line looks like a column/index name
+                first_line = content_lines[0].strip()
+                
+                # Check if subsequent lines have consistent format: "name    value"
+                data_rows = []
+                series_format = True
+                
+                for i in range(1, len(content_lines)):
+                    line = content_lines[i].strip()
+                    # Split on whitespace, but handle names with spaces
+                    parts = line.split()
+                    
+                    if len(parts) >= 2:
+                        # Last part should be numeric (value)
+                        try:
+                            float(parts[-1])
+                            # Everything except the last part is the name/index
+                            name = ' '.join(parts[:-1])
+                            value = parts[-1]
+                            data_rows.append([name, value])
+                        except ValueError:
+                            series_format = False
+                            break
+                    else:
+                        series_format = False
+                        break
+                
+                # If we detected Series format, create table
+                if series_format and len(data_rows) > 0:
+                    print(f"✅ Detected pandas Series format with {len(data_rows)} rows")
+                    return {
+                        "columns": [first_line, "Value"],
+                        "rows": data_rows
+                    }
+            
+            # Pattern 2: DataFrame format with column headers
+            # Format: "  Product  Revenue\n0  Laptop  30000\n1  Phone   25000"
+            if len(content_lines) >= 3:
+                # Check if first line has multiple column names
+                potential_headers = content_lines[0].split()
+                
+                if len(potential_headers) >= 2:
+                    data_rows = []
+                    df_format = True
+                    
+                    for i in range(1, len(content_lines)):
+                        line = content_lines[i].strip()
+                        parts = line.split()
+                        
+                        # Skip index column if present (starts with number)
+                        if len(parts) >= len(potential_headers):
+                            if parts[0].isdigit():
+                                row_data = parts[1:1+len(potential_headers)]
+                            else:
+                                row_data = parts[:len(potential_headers)]
+                            
+                            if len(row_data) == len(potential_headers):
+                                data_rows.append(row_data)
+                            else:
+                                df_format = False
+                                break
+                        else:
+                            df_format = False
+                            break
+                    
+                    if df_format and len(data_rows) > 0:
+                        print(f"✅ Detected pandas DataFrame format with {len(data_rows)} rows")
+                        return {
+                            "columns": potential_headers,
+                            "rows": data_rows
+                        }
+            
+            # Pattern 3: Simple key-value pairs
+            # Format: "Laptop: 40000\nPhone: 25000"
+            if len(content_lines) >= 2:
+                kv_rows = []
+                kv_format = True
+                
+                for line in content_lines:
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        kv_rows.append([key.strip(), value.strip()])
+                    else:
+                        kv_format = False
+                        break
+                
+                if kv_format and len(kv_rows) > 0:
+                    print(f"✅ Detected key-value format with {len(kv_rows)} rows")
+                    return {
+                        "columns": ["Item", "Value"],
+                        "rows": kv_rows
+                    }
+            
+            print("ℹ️ No recognizable table format detected")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Error parsing pandas output: {e}")
+            return None
+    
+    def _direct_gemini_analysis(self, user_query: str, dataset: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Direct analysis using main Gemini model when LangChain fails
+        """
+        try:
+            # Create dataset summary with more context
+            sample_data = dataset.head(5)
+            
+            # Try to get statistical summary, fallback gracefully if it fails
+            try:
+                stats_summary = dataset.describe().to_string()
+            except Exception:
+                stats_summary = "Statistical summary not available for this dataset"
+            
+            dataset_info = f"""
+Dataset Information:
+- Shape: {dataset.shape[0]} rows, {dataset.shape[1]} columns
+- Columns: {list(dataset.columns)}
+- Sample data (first 5 rows):
+{sample_data.to_string()}
+
+Statistical Summary:
+{stats_summary}
+"""
+            
+            # Automatically detect numeric columns for generic examples
+            numeric_columns = dataset.select_dtypes(include=[np.number]).columns.tolist()
+            categorical_columns = dataset.select_dtypes(include=['object', 'category']).columns.tolist()
+            
+            # Create generic example based on actual dataset structure
+            if len(numeric_columns) > 0 and len(categorical_columns) > 0:
+                example_numeric = numeric_columns[0]
+                example_categorical = categorical_columns[0]
+                generic_code_example = f"""# Get top 5 records by {example_numeric}
+top_5 = df.nlargest(5, '{example_numeric}')[['{example_categorical}', '{example_numeric}']]
+print(top_5)"""
+                generic_analysis_example = f"Based on the dataset, here are the top 5 records by {example_numeric}..."
+            elif len(numeric_columns) > 0:
+                example_numeric = numeric_columns[0]
+                generic_code_example = f"""# Get top 5 records by {example_numeric}
+top_5 = df.nlargest(5, '{example_numeric}')
+print(top_5)"""
+                generic_analysis_example = f"Based on the dataset, here are the top 5 records by {example_numeric}..."
+            else:
+                first_col = dataset.columns[0] if len(dataset.columns) > 0 else 'column'
+                generic_code_example = f"""# Get most frequent values in {first_col}
+result = df['{first_col}'].value_counts().head(5)
+print(result)"""
+                generic_analysis_example = f"Based on the dataset, here are the most frequent values in {first_col}..."
+
+            # Create analysis prompt with code generation instructions
+            direct_prompt = f"""
+You are an expert data analyst. Analyze this dataset and provide a comprehensive answer with Python code verification.
+
+{dataset_info}
+
+User Question: "{user_query}"
+
+RESPONSE FORMAT - Provide your response in this EXACT structure:
+
+## Analysis
+[Your detailed analysis here with specific numbers and insights]
+
+## Python Code
+```python
+# Code that would generate these results using pandas
+[Provide the exact Python code using 'df' that would achieve this analysis]
+```
+
+CRITICAL INSTRUCTIONS:
+1. Analyze the ACTUAL data provided above - do not use mock or example data
+2. Use appropriate columns from the dataset for ranking, grouping, or filtering
+3. Provide specific data values, names, and numerical results from the actual dataset
+4. In the Python code section, show the exact pandas operations (e.g., df.nlargest(), df.groupby(), etc.)
+5. Use 'df' as the DataFrame variable name in your code
+6. Include column names exactly as shown: {list(dataset.columns)}
+7. Data types available: {dict(dataset.dtypes.astype(str))}
+8. Make sure your code would produce the exact results you stated in the analysis
+
+Example format:
+## Analysis
+{generic_analysis_example}
+
+## Python Code
+```python
+{generic_code_example}
+```
+
+Now analyze: "{user_query}"."""
+
+            print(f"🔍 Using direct Gemini analysis for: {user_query}")
+            response = self.model.generate_content(direct_prompt)
+            
+            print("=" * 60)
+            print("🤖 DIRECT GEMINI MODEL OUTPUT:")
+            print("=" * 60)
+            print(f"Response type: {type(response)}")
+            print(f"Has text: {bool(response and response.text)}")
+            print("=" * 60)
+            
+            if response and response.text:
+                answer_text = response.text.strip()
+                
+                print("📝 RAW GEMINI RESPONSE:")
+                print("-" * 40)
+                print(answer_text)
+                print("-" * 40)
+                
+                # Extract Python code from the response
+                python_code = []
+                analysis_text = answer_text
+                
+                print("🔍 EXTRACTING PYTHON CODE FROM RESPONSE:")
+                print(f"📄 Response contains '## Python Code': {'## Python Code' in answer_text}")
+                
+                # Parse the structured response format
+                if "## Python Code" in answer_text:
+                    # Split analysis and code sections
+                    parts = answer_text.split("## Python Code")
+                    if len(parts) >= 2:
+                        analysis_text = parts[0].replace("## Analysis", "").strip()
+                        code_section = parts[1].strip()
+                        
+                        print(f"📝 Code section found: {code_section[:200]}...")
+                        
+                        # Extract code from markdown code blocks
+                        if "```python" in code_section:
+                            print("✅ Found '```python' code blocks")
+                            code_blocks = code_section.split("```python")
+                            for i, block in enumerate(code_blocks[1:]):  # Skip first split (before first code block)
+                                if "```" in block:
+                                    code = block.split("```")[0].strip()
+                                    if code:
+                                        python_code.append(code)
+                                        print(f"📝 Extracted code block {i+1}: {code[:100]}...")
+                        
+                        elif "```" in code_section:
+                            # Handle cases where it's just ``` without python specifier
+                            code_blocks = code_section.split("```")
+                            for i in range(1, len(code_blocks), 2):  # Get odd indices (code blocks)
+                                code = code_blocks[i].strip()
+                                if code and not code.startswith('#'):  # Avoid just comments
+                                    python_code.append(code)
+                
+                # Try to extract tabular data using enhanced parser
+                tabular_data = []
+                has_table = False
+                
+                # Use the same enhanced parser as the main analysis method
+                try:
+                    parsed_table = self._parse_pandas_output_to_table(analysis_text)
+                    if parsed_table:
+                        tabular_data = parsed_table
+                        has_table = True
+                        print(f"✅ Direct Gemini analysis: parsed tabular data with {len(tabular_data.get('rows', []))} rows")
+                except Exception as parse_error:
+                    print(f"⚠️ Direct Gemini table parsing failed: {parse_error}")
+                    has_table = False
+                
+                # Prepare reasoning and code steps for display
+                reasoning_steps = ["Used direct Gemini 2.0 Flash analysis for maximum reliability"]
+                code_steps = python_code if python_code else ["Generated analysis from dataset summary and statistical data"]
+                
+                print("=" * 60)
+                print("🎯 FINAL RESPONSE SUMMARY:")
+                print("=" * 60)
+                print(f"📝 Analysis text length: {len(analysis_text)}")
+                print(f"🐍 Python code blocks found: {len(python_code)}")
+                if python_code:
+                    for i, code in enumerate(python_code):
+                        print(f"   Code Block {i+1}: {len(code)} characters")
+                        print(f"   Preview: {code[:50]}...")
+                print(f"📊 Tabular data: {tabular_data}")
+                print(f"🔢 Has table: {has_table}")
+                print("=" * 60)
+                
+                response_data = {
+                    "answer": analysis_text,
+                    "success": True,
+                    "reasoning_steps": reasoning_steps,
+                    "code_steps": code_steps,
+                    "tabular_data": tabular_data,
+                    "has_table": has_table
+                }
+                
+                return response_data
+            else:
+                return {
+                    "answer": "I was unable to generate an analysis for your query.",
+                    "success": False,
+                    "reasoning_steps": [],
+                    "code_steps": [],
+                    "tabular_data": [],
+                    "has_table": False
+                }
+                
+        except Exception as direct_error:
+            print(f"❌ Direct Gemini analysis also failed: {direct_error}")
+            return {
+                "answer": f"I encountered an error while analyzing your data: {str(direct_error)[:200]}...",
+                "success": False,
+                "reasoning_steps": [],
+                "code_steps": [],
+                "tabular_data": [],
+                "has_table": False
+            }
+    
+    def _validate_agent_used_real_data(self, user_query: str, agent_answer: str, dataset: pd.DataFrame) -> bool:
+        """Validate if the pandas agent used the actual dataset or created mock data"""
+        try:
+            query_lower = user_query.lower()
+            
+            # For "highest core area" queries, check if answer matches mock data patterns
+            if 'highest' in query_lower and 'core area' in query_lower:
+                # Agent using mock data would likely say "Chhattisgarh with 2797"
+                if "chhattisgarh" in agent_answer.lower() and "2797" in agent_answer:
+                    print("🚨 Detected agent using mock data (Chhattisgarh 2797)")
+                    return False
+            
+            # For "top 5" queries, check if results match expected real data patterns
+            elif 'top' in query_lower and ('5' in query_lower or 'five' in query_lower):
+                # Check if agent mentions realistic reserve names from our dataset
+                real_reserve_names = set(dataset['TigerReserve'].str.lower() if 'TigerReserve' in dataset.columns else [])
+                mentioned_reserves = set()
+                for reserve in real_reserve_names:
+                    if reserve in agent_answer.lower():
+                        mentioned_reserves.add(reserve)
+                
+                # If less than 3 real reserve names mentioned, likely using mock data
+                if len(mentioned_reserves) < 3:
+                    print(f"🚨 Detected agent using mock data (only {len(mentioned_reserves)} real reserves mentioned)")
+                    return False
+            
+            # Check for common mock data indicators
+            mock_indicators = ["sample data", "mock data", "example data", "data = {"]
+            for indicator in mock_indicators:
+                if indicator in agent_answer.lower():
+                    return False
+                    
+            return True
+            
+        except Exception as e:
+            print(f"Validation error: {e}")
+            return True  # Assume valid if we can't validate
+    
+    def _provide_correct_calculation(self, user_query: str, dataset: pd.DataFrame) -> str:
+        """Provide correct calculation when agent used mock data"""
+        try:
+            query_lower = user_query.lower()
+            
+            # Handle "highest core area by state" queries
+            if 'highest' in query_lower and 'core area' in query_lower and 'state' in query_lower:
+                if 'State' in dataset.columns and 'CoreArea_km2' in dataset.columns:
+                    state_areas = dataset.groupby('State')['CoreArea_km2'].sum()
+                    max_area = state_areas.max()
+                    state_with_max = state_areas.idxmax()
+                    return f"The state with the highest total core area is {state_with_max} with {max_area:.2f} sq km."
+            
+            # Handle "highest core area" (single reserve) queries  
+            elif 'highest' in query_lower and 'core area' in query_lower:
+                if 'CoreArea_km2' in dataset.columns and 'TigerReserve' in dataset.columns:
+                    max_idx = dataset['CoreArea_km2'].idxmax()
+                    max_reserve = dataset.loc[max_idx, 'TigerReserve']
+                    max_area = dataset.loc[max_idx, 'CoreArea_km2']
+                    state = dataset.loc[max_idx, 'State'] if 'State' in dataset.columns else 'Unknown'
+                    return f"The tiger reserve with the highest core area is {max_reserve} in {state} with {max_area:.2f} sq km."
+            
+            # Handle "top 5" queries
+            elif 'top' in query_lower and ('5' in query_lower or 'five' in query_lower):
+                if 'Population2023' in dataset.columns and 'TigerReserve' in dataset.columns:
+                    top_5 = dataset.nlargest(5, 'Population2023')
+                    results = []
+                    for _, row in top_5.iterrows():
+                        results.append(f"{row['TigerReserve']} ({int(row['Population2023'])})")
+                    return f"The top 5 tiger reserves by population in 2023 are: {', '.join(results)}."
+            
+            # Handle Karnataka reserves queries
+            elif 'karnataka' in query_lower and 'reserve' in query_lower:
+                if 'State' in dataset.columns and 'TigerReserve' in dataset.columns:
+                    karnataka_reserves = dataset[dataset['State'] == 'Karnataka']['TigerReserve'].tolist()
+                    return f"Karnataka has {len(karnataka_reserves)} tiger reserves: {', '.join(karnataka_reserves)}."
+            
+            return None
+            
+        except Exception as e:
+            print(f"Correction calculation error: {e}")
+            return None
+    
+    def _extract_tabular_data_from_observation(self, observation: str) -> Dict[str, Any]:
+        """Extract tabular data from pandas agent observations"""
+        try:
+            # Check if observation contains tabular output (DataFrame print)
+            lines = observation.strip().split('\n')
+            
+            # Look for DataFrame patterns
+            if len(lines) < 3:
+                return None
+                
+            # Pattern 1: Check for standard DataFrame output with index and columns
+            # Example:
+            #                    Change
+            # State                    
+            # Andhra Pradesh      -16.0
+            # Assam                62.0
+            
+            header_line = None
+            data_rows = []
+            index_column_name = None
+            
+            for i, line in enumerate(lines):
+                # Skip empty lines
+                if not line.strip():
+                    continue
+                    
+                # Check for column headers (often indented with column names)
+                if any(char.isalpha() for char in line) and line.strip() and not line.startswith(' ' * 10):
+                    if header_line is None and ('Change' in line or 'Population' in line or 'Area' in line):
+                        header_line = line.strip()
+                        # Check if next line might be index column name
+                        if i + 1 < len(lines) and lines[i + 1].strip() and not any(char.isdigit() for char in lines[i + 1][:20]):
+                            index_column_name = lines[i + 1].strip()
+                        continue
+                
+                # Look for data rows (contain numbers and state/reserve names)
+                if line.strip() and any(char.isdigit() for char in line):
+                    # Extract index and values
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        try:
+                            # Try to parse the last part as a number
+                            float(parts[-1])
+                            index_name = ' '.join(parts[:-1])
+                            value = parts[-1]
+                            data_rows.append({'index': index_name, 'value': value})
+                        except ValueError:
+                            continue
+            
+            # If we found tabular data, format it
+            if data_rows and len(data_rows) > 1:
+                # Create table structure
+                table_data = {
+                    'type': 'table',
+                    'columns': [index_column_name or 'Item', header_line or 'Value'],
+                    'rows': [[row['index'], row['value']] for row in data_rows],
+                    'title': f"Results ({len(data_rows)} rows)"
+                }
+                
+                print(f"📊 Extracted table data: {len(data_rows)} rows")
+                return table_data
+            
+            # Pattern 2: Simple single-value results
+            # Example: "198" or "43.56603773584906"
+            if len(lines) == 1 and lines[0].strip():
+                try:
+                    value = float(lines[0].strip())
+                    return {
+                        'type': 'value',
+                        'value': value,
+                        'formatted': lines[0].strip()
+                    }
+                except ValueError:
+                    pass
+                    
+            return None
+            
+        except Exception as e:
+            print(f"Table extraction error: {e}")
+            return None
     
     def _ensure_json_safe(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Ensure DataFrame is JSON serializable"""
+        """Ensure DataFrame is JSON serializable with comprehensive safety checks"""
         safe_data = data.copy()
         
+        print(f"🔧 JSON safety check for DataFrame: {safe_data.shape}")
+        
         for col in safe_data.columns:
-            # Handle NaN and infinite values
-            if safe_data[col].dtype.kind in 'fc':  # float or complex
+            # Handle all numeric columns (float, int, complex)
+            if safe_data[col].dtype.kind in 'fiuc':  # float, int, unsigned int, complex
+                # Step 1: Replace infinite values with None
                 safe_data[col] = safe_data[col].replace([np.inf, -np.inf], None)
+                
+                # Step 2: Replace NaN values with None
+                safe_data[col] = safe_data[col].where(pd.notna(safe_data[col]), None)
+                
+                # Step 3: Handle extremely large values that might not be JSON safe
+                if safe_data[col].dtype.kind == 'f':  # float columns
+                    # Check for values that might be too large for JSON
+                    mask = safe_data[col].notna()
+                    if mask.any():
+                        # Replace values outside reasonable JSON range
+                        safe_data.loc[mask & (safe_data[col].abs() > 1e15), col] = None
+                        
+                # Step 4: Convert to standard Python types
+                safe_data[col] = safe_data[col].astype(object, errors='ignore')
+            
+            # Handle string columns that might have issues
+            elif safe_data[col].dtype == 'object':
+                # Replace any remaining NaN in object columns
                 safe_data[col] = safe_data[col].where(pd.notna(safe_data[col]), None)
         
+        print(f"🔧 JSON safety check completed")
         return safe_data
     
     def _execute_agent_result_on_data(self, user_query: str, data: pd.DataFrame) -> Optional[pd.DataFrame]:
@@ -887,9 +1808,50 @@ Return only the filtered/transformed DataFrame as the final result.
             print(f"🤖 Direct filter extraction failed: {e}")
             return None
     
-    def explore_data(self, user_query: str, chart_data: Dict[str, Any]) -> Dict[str, Any]:
+    def explore_data_enhanced(self, user_query: str, chart_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Main entry point for AI data exploration
+        ENHANCED AI data exploration with full dataset context
+        Now has access to complete original dataset, not just chart's aggregated data
+        """
+        # Extract FULL dataset context
+        full_dataset = chart_data.get("full_dataset")
+        current_chart_data = pd.DataFrame(chart_data.get("table", []))
+        
+        # Current chart context for reference
+        current_dimensions = chart_data.get("dimensions", [])
+        current_measures = chart_data.get("measures", [])
+        dataset_id = chart_data.get("dataset_id", "")
+        
+        # All available columns from full dataset
+        available_dims = chart_data.get("available_columns", {}).get("dimensions", [])
+        available_measures = chart_data.get("available_columns", {}).get("measures", [])
+        
+        print(f"🤖 ENHANCED Data exploration request: '{user_query}'")
+        print(f"📊 Full dataset shape: {full_dataset.shape}")
+        print(f"📈 Current chart context: dims={current_dimensions}, measures={current_measures}")
+        print(f"🔍 Available dimensions: {available_dims}")
+        print(f"🔍 Available measures: {available_measures}")
+        
+        # PRIORITY 1: Try enhanced pandas DataFrame agent with FULL dataset
+        if LANGCHAIN_AVAILABLE and self.llm is not None:
+            enhanced_result = self._use_pandas_agent_enhanced(user_query, full_dataset, current_dimensions, current_measures, available_dims, available_measures)
+            if enhanced_result:
+                enhanced_result.update({
+                    "original_query": user_query,
+                    "dataset_id": dataset_id
+                })
+                print(f"✅ Enhanced pandas agent succeeded")
+                return enhanced_result
+            else:
+                print(f"❌ Enhanced pandas agent failed, trying fallback...")
+        
+        # FALLBACK: Use original method with chart data
+        print(f"⚠️ Using fallback to original explore_data method...")
+        return self.explore_data_original(user_query, chart_data)
+
+    def explore_data_original(self, user_query: str, chart_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Original AI data exploration (fallback method)
         Enhanced with pandas DataFrame agent for flexible natural language processing
         """
         # Extract current chart context

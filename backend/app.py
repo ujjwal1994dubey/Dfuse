@@ -750,8 +750,8 @@ ai_formulator = GeminiDataFormulator()
 @app.post("/ai-explore")
 async def ai_explore_data(request: AIExploreRequest):
     """
-    AI-powered data exploration using Gemini + Data Formulator
-    Takes a chart and natural language query, returns transformed data and new chart suggestion
+    SIMPLIFIED AI-powered data exploration using direct pandas DataFrame agent
+    Returns text-based results instead of creating new charts
     """
     if request.chart_id not in CHARTS:
         raise HTTPException(status_code=404, detail="Chart not found")
@@ -764,207 +764,44 @@ async def ai_explore_data(request: AIExploreRequest):
         raise HTTPException(status_code=404, detail="Dataset not found")
     
     try:
-        # Prepare chart context for AI
-        chart_context = {
-            "chart_id": request.chart_id,
-            "dataset_id": dataset_id,
-            "dimensions": chart.get("dimensions", []),
-            "measures": chart.get("measures", []),
-            "agg": chart.get("agg", "sum"),
-            "table": chart.get("table", []),
-            "title": chart.get("title", "")
-        }
+        # Get the full original dataset
+        full_dataset = DATASETS[dataset_id]
         
-        # Debug logging
-        print(f"🤖 AI Exploration started:")
+        print(f"🤖 SIMPLIFIED AI Exploration started:")
         print(f"   Query: '{request.user_query}'")
-        print(f"   Chart context: dimensions={chart_context['dimensions']}, measures={chart_context['measures']}")
-        print(f"   Data rows: {len(chart_context['table'])}")
+        print(f"   Dataset shape: {full_dataset.shape}")
+        print(f"   Available columns: {list(full_dataset.columns)}")
         
-        # Call AI data exploration
-        ai_result = ai_formulator.explore_data(request.user_query, chart_context)
-        print(f"   AI result: dimensions={ai_result['dimensions']}, measures={ai_result['measures']}")
-        print(f"   Transformations: {ai_result['transformations']}")
+        # Use direct pandas DataFrame agent for text-based results
+        ai_result = ai_formulator.get_text_analysis(request.user_query, full_dataset)
         
-        # Generate new chart ID for the transformed result
-        new_chart_id = str(uuid.uuid4())
+        print(f"✅ AI Analysis completed successfully!")
+        print(f"   Result length: {len(ai_result.get('answer', ''))}")
         
-        # Convert transformed DataFrame back to table format
-        transformed_df = ai_result["data"]
-        if not transformed_df.empty:
-            # COMPREHENSIVE JSON serialization compatibility fix
-            import numpy as np
-            import json
-            
-            # Step 1: Handle NaN/inf in ALL columns (not just numeric)
-            for col in transformed_df.columns:
-                # Replace inf/-inf with None
-                transformed_df[col] = transformed_df[col].replace([np.inf, -np.inf], None)
-                # Replace NaN with None 
-                transformed_df[col] = transformed_df[col].where(pd.notna(transformed_df[col]), None)
-                
-                # Additional safety: handle any remaining problematic numeric types
-                if transformed_df[col].dtype.kind in 'fc':  # float or complex
-                    # Convert any remaining non-finite values to None
-                    mask = ~np.isfinite(transformed_df[col].astype(float, errors='ignore'))
-                    transformed_df.loc[mask, col] = None
-            
-            # Step 2: Convert to records and validate JSON compatibility
-            table_data = transformed_df.to_dict(orient="records")
-            
-            # Step 3: Final safety check - test JSON serialization
-            try:
-                json.dumps(table_data)  # Test serialization
-            except (ValueError, TypeError) as json_error:
-                print(f"JSON serialization error caught, applying emergency fix: {json_error}")
-                # Emergency fix: convert any remaining problematic values
-                for record in table_data:
-                    for key, value in record.items():
-                        if isinstance(value, float):
-                            if not np.isfinite(value):
-                                record[key] = None
-                        elif hasattr(value, 'dtype') and value.dtype.kind in 'fc':
-                            try:
-                                float_val = float(value)
-                                if not np.isfinite(float_val):
-                                    record[key] = None
-                            except (ValueError, TypeError, OverflowError):
-                                record[key] = None
-        else:
-            table_data = []
-        
-        # Create new chart configuration
-        new_chart = {
-            "chart_id": new_chart_id,
-            "dataset_id": dataset_id,
-            "dimensions": ai_result["dimensions"],
-            "measures": ai_result["measures"],
-            "agg": chart.get("agg", "sum"),  # Keep original aggregation unless changed
-            "title": f"AI Explored: {request.user_query[:50]}{'...' if len(request.user_query) > 50 else ''}",
-            "table": table_data,
-            "is_ai_generated": True,
-            "source_chart_id": request.chart_id,
-            "transformation_log": ai_result["transformations"],
-            "ai_query": request.user_query
+        # Return complete AI analysis response including code_steps for frontend display
+        return {
+            "success": ai_result.get("success", True),
+            "answer": ai_result.get("answer", "I couldn't process your query."),
+            "query": request.user_query,
+            "dataset_info": f"Dataset: {full_dataset.shape[0]} rows, {full_dataset.shape[1]} columns",
+            "code_steps": ai_result.get("code_steps", []),  # ⭐ Include Python code for frontend display
+            "reasoning_steps": ai_result.get("reasoning_steps", []),
+            "tabular_data": ai_result.get("tabular_data", []),
+            "has_table": ai_result.get("has_table", False)
         }
-        
-        # Proactive JSON safety check for chart object before storing
-        try:
-            json.dumps(new_chart)
-            print(f"   Chart object JSON check: ✅ PASSED")
-        except (ValueError, TypeError) as chart_error:
-            print(f"❌ Chart object JSON check failed: {chart_error}")
-            # Apply JSON safety to chart object
-            def make_chart_json_safe(obj):
-                if isinstance(obj, dict):
-                    return {k: make_chart_json_safe(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [make_chart_json_safe(item) for item in obj]
-                elif isinstance(obj, float):
-                    if not np.isfinite(obj):
-                        return None
-                    return obj
-                elif hasattr(obj, 'dtype') and obj.dtype.kind in 'fc':
-                    try:
-                        float_val = float(obj)
-                        return float_val if np.isfinite(float_val) else None
-                    except (ValueError, TypeError, OverflowError):
-                        return None
-                else:
-                    return obj
-            
-            new_chart = make_chart_json_safe(new_chart)
-            print(f"   Chart object JSON safety applied")
-        
-        # Store the new chart
-        CHARTS[new_chart_id] = new_chart
-        
-        # Prepare response with JSON safety
-        response_data = {
-            "success": True,
-            "new_chart": new_chart,
-            "chart_suggestion": ai_result["chart_suggestion"],
-            "transformations": ai_result["transformations"],
-            "ai_response": ai_result.get("ai_response", ""),
-            "original_query": request.user_query,
-            "data_shape": {
-                "rows": len(table_data),
-                "columns": len(transformed_df.columns) if not transformed_df.empty else 0
-            }
-        }
-        
-        # Final JSON safety check for entire response with detailed debugging
-        try:
-            json.dumps(response_data)
-            print(f"   JSON serialization check: ✅ PASSED")
-        except (ValueError, TypeError) as final_error:
-            print(f"❌ Final JSON safety check failed: {final_error}")
-            print(f"   Analyzing response structure...")
-            
-            # Debug each part of the response
-            for key, value in response_data.items():
-                try:
-                    json.dumps(value)
-                    print(f"   ✅ {key}: OK")
-                except Exception as part_error:
-                    print(f"   ❌ {key}: FAILED - {part_error}")
-                    if key == "new_chart" and isinstance(value, dict) and "table" in value:
-                        print(f"      Checking table data...")
-                        for i, row in enumerate(value["table"][:3]):  # Check first 3 rows
-                            try:
-                                json.dumps(row)
-                                print(f"      ✅ Row {i}: OK")
-                            except Exception as row_error:
-                                print(f"      ❌ Row {i}: {row_error}")
-                                for col, col_val in row.items():
-                                    try:
-                                        json.dumps(col_val)
-                                    except Exception as col_error:
-                                        print(f"         ❌ {col}: {col_val} ({type(col_val)}) - {col_error}")
-            
-            # Fallback: ensure all values are JSON-safe
-            def make_json_safe(obj):
-                if isinstance(obj, dict):
-                    return {k: make_json_safe(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [make_json_safe(item) for item in obj]
-                elif isinstance(obj, float):
-                    if not np.isfinite(obj):
-                        return None
-                    return obj
-                elif hasattr(obj, 'dtype') and obj.dtype.kind in 'fc':
-                    try:
-                        float_val = float(obj)
-                        return float_val if np.isfinite(float_val) else None
-                    except (ValueError, TypeError, OverflowError):
-                        return None
-                else:
-                    return obj
-            
-            print(f"   Applying comprehensive JSON safety fix...")
-            response_data = make_json_safe(response_data)
-            
-            # Test again
-            try:
-                json.dumps(response_data)
-                print(f"   ✅ JSON safety fix successful!")
-            except Exception as final_final_error:
-                print(f"   ❌ JSON safety fix still failed: {final_final_error}")
-                # Last resort: return error response
-                return {
-                    "success": False,
-                    "error": f"JSON serialization failed: {str(final_final_error)}",
-                    "debug_info": "Comprehensive safety fix applied but still failing"
-                }
-        
-        print(f"✅ AI Exploration completed successfully!")
-        print(f"   New chart created: {new_chart_id}")
-        print(f"   Data rows: {len(table_data)}")
-        
-        return response_data
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI exploration failed: {str(e)}")
+        print(f"❌ AI Exploration failed: {str(e)}")
+        return {
+            "success": False,
+            "answer": f"Sorry, I encountered an error: {str(e)}",
+            "query": request.user_query,
+            "dataset_info": "",
+            "code_steps": [],  # Empty code steps on error
+            "reasoning_steps": [],
+            "tabular_data": [],
+            "has_table": False
+        }
 
 
 @app.post("/ai-calculate-metric")
