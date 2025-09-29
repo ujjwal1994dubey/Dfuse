@@ -20,31 +20,44 @@ except ImportError as e:
     print(f"LangChain imports failed: {e}")
     LANGCHAIN_AVAILABLE = False
 
+
 class GeminiDataFormulator:
     """
     Data Formulator with Gemini 2.0 Flash for natural language data transformations
     """
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.0-flash-exp"):
         self.api_key = api_key or "AIzaSyCme3aE7H9TmRgKqHCqhqV8f-9FhIqDfOM"
+        self.model_name = model
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        self.model = genai.GenerativeModel(self.model_name)
         
         # Initialize pandas DataFrame agent if langchain is available
         self.pandas_agent = None
         if LANGCHAIN_AVAILABLE:
             try:
+                # Map frontend model names to LangChain compatible names
+                langchain_model = self._get_langchain_model_name(model)
                 self.llm = GoogleGenerativeAI(
-                    model="gemini-2.0-flash",
+                    model=langchain_model,
                     google_api_key=self.api_key,
                     temperature=0.1
                 )
-                print("✅ Pandas DataFrame Agent initialized successfully")
+                print(f"✅ Pandas DataFrame Agent initialized successfully with {langchain_model}")
             except Exception as e:
                 print(f"❌ Failed to initialize pandas DataFrame agent: {e}")
                 self.llm = None
         else:
             print("⚠️  LangChain not available, using structured parsing only")
+    
+    def _get_langchain_model_name(self, model: str) -> str:
+        """Convert frontend model names to LangChain compatible names"""
+        model_mapping = {
+            "gemini-1.5-flash": "gemini-1.5-flash",
+            "gemini-2.0-flash": "gemini-2.0-flash", 
+            "gemini-2.0-flash-exp": "gemini-2.0-flash"  # fallback to stable version for LangChain
+        }
+        return model_mapping.get(model, "gemini-2.0-flash")
     
     def run_gemini(self, prompt: str, model: str = "gemini-2.0-flash-exp") -> str:
         """
@@ -719,6 +732,45 @@ Execute the operation:"""
         except Exception as e:
             print(f"❌ Pandas DataFrame agent failed: {str(e)}")
             return None
+    
+    def test_configuration(self) -> Dict[str, Any]:
+        """
+        Test the API key and model configuration
+        """
+        try:
+            # Test direct Gemini API call
+            test_prompt = "Hello! Please respond with 'Configuration test successful' to verify the API key and model are working correctly."
+            
+            response = self.model.generate_content(test_prompt)
+            
+            if response and response.text:
+                # Extract token usage if available
+                token_usage = {}
+                if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                    token_usage = {
+                        'inputTokens': getattr(response.usage_metadata, 'prompt_token_count', 0),
+                        'outputTokens': getattr(response.usage_metadata, 'candidates_token_count', 0),
+                        'totalTokens': getattr(response.usage_metadata, 'total_token_count', 0)
+                    }
+                
+                return {
+                    'success': True,
+                    'message': 'Configuration test successful! API key and model are working correctly.',
+                    'model_used': self.model_name,
+                    'response': response.text.strip(),
+                    'token_usage': token_usage
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Model returned empty response'
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Configuration test failed: {str(e)}"
+            }
 
     def _use_pandas_agent_enhanced(self, user_query: str, full_dataset: pd.DataFrame, current_dimensions: List[str], current_measures: List[str], available_dims: List[str], available_measures: List[str]) -> Optional[Dict[str, Any]]:
         """
@@ -1067,6 +1119,16 @@ Generate ONLY the code, no explanations:"""
             print("🤖 Generating pandas code for real dataset...")
             code_response = self.model.generate_content(code_generation_prompt)
             
+            # Extract token usage from the API response
+            token_usage = {}
+            if hasattr(code_response, 'usage_metadata') and code_response.usage_metadata:
+                token_usage = {
+                    'inputTokens': getattr(code_response.usage_metadata, 'prompt_token_count', 0),
+                    'outputTokens': getattr(code_response.usage_metadata, 'candidates_token_count', 0),
+                    'totalTokens': getattr(code_response.usage_metadata, 'total_token_count', 0)
+                }
+                print(f"🪙 Token usage - Input: {token_usage.get('inputTokens', 0)}, Output: {token_usage.get('outputTokens', 0)}, Total: {token_usage.get('totalTokens', 0)}")
+            
             if code_response and code_response.text:
                 # Extract Python code from response  
                 generated_code = code_response.text.strip()
@@ -1127,9 +1189,9 @@ Generate ONLY the code, no explanations:"""
                         try:
                             parsed_table = self._parse_pandas_output_to_table(execution_output)
                             if parsed_table:
-                                tabular_data = parsed_table
+                                tabular_data = [parsed_table]  # Wrap in array for frontend
                                 has_table = True
-                                print(f"✅ Successfully parsed tabular data: {len(tabular_data.get('rows', []))} rows")
+                                print(f"✅ Successfully parsed tabular data: {len(parsed_table.get('rows', []))} rows")
                         except Exception as parse_error:
                             print(f"⚠️ Table parsing failed: {parse_error}")
                             has_table = False
@@ -1140,7 +1202,8 @@ Generate ONLY the code, no explanations:"""
                         "reasoning_steps": ["✅ Executed pandas code on REAL uploaded dataset"],
                         "code_steps": [code_lines],  # Show the actual pandas code
                         "tabular_data": tabular_data,
-                        "has_table": has_table
+                        "has_table": has_table,
+                        "token_usage": token_usage
                     }
                     
                 except Exception as exec_error:
@@ -1153,7 +1216,8 @@ Generate ONLY the code, no explanations:"""
                         "reasoning_steps": [f"❌ Code execution failed: {str(exec_error)}"],
                         "code_steps": [code_lines],
                         "tabular_data": [],
-                        "has_table": False
+                        "has_table": False,
+                        "token_usage": token_usage
                     }
                     
             else:
@@ -1218,6 +1282,7 @@ Generate ONLY the code, no explanations:"""
                 if series_format and len(data_rows) > 0:
                     print(f"✅ Detected pandas Series format with {len(data_rows)} rows")
                     return {
+                        "type": "table",
                         "columns": [first_line, "Value"],
                         "rows": data_rows
                     }
@@ -1255,6 +1320,7 @@ Generate ONLY the code, no explanations:"""
                     if df_format and len(data_rows) > 0:
                         print(f"✅ Detected pandas DataFrame format with {len(data_rows)} rows")
                         return {
+                            "type": "table",
                             "columns": potential_headers,
                             "rows": data_rows
                         }
@@ -1276,6 +1342,7 @@ Generate ONLY the code, no explanations:"""
                 if kv_format and len(kv_rows) > 0:
                     print(f"✅ Detected key-value format with {len(kv_rows)} rows")
                     return {
+                        "type": "table",
                         "columns": ["Item", "Value"],
                         "rows": kv_rows
                     }
@@ -1380,6 +1447,15 @@ Now analyze: "{user_query}"."""
             print(f"🔍 Using direct Gemini analysis for: {user_query}")
             response = self.model.generate_content(direct_prompt)
             
+            # Extract token usage if available
+            token_usage = {}
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                token_usage = {
+                    'inputTokens': getattr(response.usage_metadata, 'prompt_token_count', 0),
+                    'outputTokens': getattr(response.usage_metadata, 'candidates_token_count', 0),
+                    'totalTokens': getattr(response.usage_metadata, 'total_token_count', 0)
+                }
+            
             print("=" * 60)
             print("🤖 DIRECT GEMINI MODEL OUTPUT:")
             print("=" * 60)
@@ -1439,9 +1515,9 @@ Now analyze: "{user_query}"."""
                 try:
                     parsed_table = self._parse_pandas_output_to_table(analysis_text)
                     if parsed_table:
-                        tabular_data = parsed_table
+                        tabular_data = [parsed_table]  # Wrap in array for frontend
                         has_table = True
-                        print(f"✅ Direct Gemini analysis: parsed tabular data with {len(tabular_data.get('rows', []))} rows")
+                        print(f"✅ Direct Gemini analysis: parsed tabular data with {len(parsed_table.get('rows', []))} rows")
                 except Exception as parse_error:
                     print(f"⚠️ Direct Gemini table parsing failed: {parse_error}")
                     has_table = False
@@ -1469,7 +1545,8 @@ Now analyze: "{user_query}"."""
                     "reasoning_steps": reasoning_steps,
                     "code_steps": code_steps,
                     "tabular_data": tabular_data,
-                    "has_table": has_table
+                    "has_table": has_table,
+                    "token_usage": token_usage
                 }
                 
                 return response_data
@@ -1480,7 +1557,8 @@ Now analyze: "{user_query}"."""
                     "reasoning_steps": [],
                     "code_steps": [],
                     "tabular_data": [],
-                    "has_table": False
+                    "has_table": False,
+                    "token_usage": {}
                 }
                 
         except Exception as direct_error:
@@ -1491,7 +1569,8 @@ Now analyze: "{user_query}"."""
                 "reasoning_steps": [],
                 "code_steps": [],
                 "tabular_data": [],
-                "has_table": False
+                "has_table": False,
+                "token_usage": {}
             }
     
     def _validate_agent_used_real_data(self, user_query: str, agent_answer: str, dataset: pd.DataFrame) -> bool:

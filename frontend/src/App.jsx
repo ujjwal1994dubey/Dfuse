@@ -3,8 +3,8 @@ import ReactFlow, { Background, Controls, MiniMap, applyNodeChanges, applyEdgeCh
 import Plot from 'react-plotly.js';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Button, Badge, Card, CardHeader, CardContent, FileUpload, RadioGroup, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from './components/ui';
-import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2 } from 'lucide-react';
+import { Button, Badge, Card, CardHeader, CardContent, FileUpload, RadioGroup, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui';
+import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, AlertCircle, Eye, EyeOff, Edit } from 'lucide-react';
 import './tiptap-styles.css';
 
 const API = 'http://localhost:8000';
@@ -565,7 +565,7 @@ function TextBoxNode({ data, id }) {
 }
 
 // TipTap-based Expression Node Component
-function ExpressionNode({ data, id }) {
+function ExpressionNode({ data, id, apiKey, selectedModel, setShowSettings, updateTokenUsage }) {
   const [expression, setExpression] = useState(data.expression || '');
   const [result, setResult] = useState(data.result || null);
   const [isEditing, setIsEditing] = useState(data.isNew || false);
@@ -1007,6 +1007,19 @@ function ExpressionNode({ data, id }) {
   const handleAIMetricCalculation = useCallback(async () => {
     if (!aiQuery.trim() || !data.datasetId) return;
     
+    // Check if API key is configured
+    const currentApiKey = apiKey || localStorage.getItem('gemini_api_key');
+    const currentModel = selectedModel || localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
+    
+    if (!currentApiKey.trim()) {
+      setAiResult({
+        success: false,
+        error: '⚠️ Please configure your Gemini API key in Settings first.'
+      });
+      setShowSettings(true);
+      return;
+    }
+    
     setAiLoading(true);
     try {
       console.log('🧮 Calculating AI metric:', aiQuery);
@@ -1022,7 +1035,9 @@ function ExpressionNode({ data, id }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_query: aiQuery,
-          dataset_id: data.datasetId
+          dataset_id: data.datasetId,
+          api_key: currentApiKey,
+          model: currentModel
         })
       });
       
@@ -1030,6 +1045,11 @@ function ExpressionNode({ data, id }) {
       
       if (result.success) {
         console.log('✅ AI metric calculated:', result);
+        
+        // Track token usage
+        if (result.token_usage) {
+          updateTokenUsage(result.token_usage);
+        }
         
         // 🐍 LOG PYTHON CODE TO BROWSER CONSOLE (if available)
         if (result.code_steps && result.code_steps.length > 0) {
@@ -1061,12 +1081,12 @@ function ExpressionNode({ data, id }) {
       console.error('Failed to calculate AI metric:', error);
       setAiResult({
         success: false,
-        error: 'Network error occurred while calculating metric'
+        error: `Network error occurred while calculating metric. ${error.message.includes('401') || error.message.includes('403') ? 'Please check your API key in Settings.' : ''}`
       });
     } finally {
       setAiLoading(false);
     }
-  }, [aiQuery, data.datasetId]);
+  }, [aiQuery, data.datasetId, apiKey, selectedModel, updateTokenUsage]);
   
   // Handle AI mode toggle
   const handleAIModeToggle = useCallback(() => {
@@ -1571,7 +1591,7 @@ function ChartTypeSelector({ dimensions = [], measures = [], currentType, onType
   );
 }
 
-function ChartNode({ data, id, selected, onSelect }) {
+function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage }) {
   const { title, figure, isFused, strategy, stats, agg, dimensions = [], measures = [], onAggChange, onShowTable, table = [], onChartHover } = data;
   const [menuOpen, setMenuOpen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -1660,6 +1680,19 @@ function ChartNode({ data, id, selected, onSelect }) {
   const handleAIExplore = async () => {
     if (!aiQuery.trim() || aiLoading) return;
     
+    // Check if API key is configured
+    const currentApiKey = apiKey || localStorage.getItem('gemini_api_key');
+    const currentModel = selectedModel || localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
+    
+    if (!currentApiKey.trim()) {
+      setAiResult({
+        success: false,
+        answer: '⚠️ Please configure your Gemini API key in Settings first.'
+      });
+      setShowSettings(true);
+      return;
+    }
+    
     setAiLoading(true);
     setShowTableView(false);  // Reset to text view for new queries
     try {
@@ -1668,7 +1701,9 @@ function ChartNode({ data, id, selected, onSelect }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chart_id: id,
-          user_query: aiQuery.trim()
+          user_query: aiQuery.trim(),
+          api_key: currentApiKey,
+          model: currentModel
         })
       });
       
@@ -1678,6 +1713,11 @@ function ChartNode({ data, id, selected, onSelect }) {
       }
       
       const result = await response.json();
+      
+      // Track token usage
+      if (result.token_usage) {
+        updateTokenUsage(result.token_usage);
+      }
       
       // 🐍 LOG PYTHON CODE TO BROWSER CONSOLE
       console.log('🤖 AI Analysis Result:', result);
@@ -1706,7 +1746,7 @@ function ChartNode({ data, id, selected, onSelect }) {
       console.error('AI exploration failed:', error);
       setAiResult({
         success: false,
-        answer: `AI exploration failed: ${error.message}`
+        answer: `AI exploration failed: ${error.message}. ${error.message.includes('401') || error.message.includes('403') ? 'Please check your API key in Settings.' : ''}`
       });
     } finally {
       setAiLoading(false);
@@ -1935,7 +1975,7 @@ function ChartNode({ data, id, selected, onSelect }) {
                   {aiResult.success ? (
                     <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                    </div>
+          </div>
                   ) : (
                     <div className="w-4 h-4 rounded-full bg-red-600 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
@@ -1972,8 +2012,9 @@ function ChartNode({ data, id, selected, onSelect }) {
                         </div>
                       )}
                     </div>
-                    {/* Content Display - Text or Table View */}
-                    {showTableView && aiResult.tabular_data && aiResult.tabular_data.length > 0 ? (
+                    {/* Content Display - Text or Table View - Scrollable Container */}
+                    <div className="max-h-96 overflow-y-auto">
+                      {showTableView && aiResult.tabular_data && aiResult.tabular_data.length > 0 ? (
                       /* Table View */
                       <div className="space-y-3">
                         {aiResult.tabular_data.map((tableData, idx) => (
@@ -2032,6 +2073,7 @@ function ChartNode({ data, id, selected, onSelect }) {
                         )}
                       </div>
                     )}
+                    </div>
                     {aiResult.dataset_info && (
                       <div className="text-xs opacity-75 mt-2">
                         {aiResult.dataset_info}
@@ -2048,20 +2090,6 @@ function ChartNode({ data, id, selected, onSelect }) {
   );
 }
 
-const nodeTypes = { 
-  chart: (props) => (
-    <ChartNode 
-      {...props} 
-      selected={props.data.selected}
-      onSelect={props.data.onSelect}
-    />
-  ),
-  arrow: ArrowNode,
-  textbox: TextBoxNode,
-  table: TableNode,
-  expression: ExpressionNode
-};
-
 function ReactFlowWrapper() {
   const [datasetId, setDatasetId] = useState(null);
   const [csvFileName, setCsvFileName] = useState('');
@@ -2077,15 +2105,85 @@ function ReactFlowWrapper() {
   const [activeTool, setActiveTool] = useState('select');
   const [arrowStart, setArrowStart] = useState(null);
   const [nodeIdCounter, setNodeIdCounter] = useState(1000);
-  
+
   // State to control zoom behavior
   const [isHoveringChart, setIsHoveringChart] = useState(false);
+  
+  // Settings state
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [selectedModel, setSelectedModel] = useState(localStorage.getItem('gemini_model') || 'gemini-2.0-flash');
+  const [configStatus, setConfigStatus] = useState('idle'); // idle, testing, success, error
+  const [configMessage, setConfigMessage] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isConfigLocked, setIsConfigLocked] = useState(false);
+  const [tokenUsage, setTokenUsage] = useState({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    estimatedCost: 0
+  });
   
   // Handler to control chart hover state
   const handleChartHover = useCallback((isHovering) => {
     setIsHoveringChart(isHovering);
   }, []);
 
+  // Helper function to calculate token costs (Gemini pricing)
+  const updateTokenUsage = useCallback((newUsage) => {
+    if (!newUsage) return;
+    
+    const inputCostPer1K = 0.00075; // $0.00075 per 1K input tokens for Gemini
+    const outputCostPer1K = 0.003;  // $0.003 per 1K output tokens for Gemini
+    
+    const inputCost = (newUsage.inputTokens / 1000) * inputCostPer1K;
+    const outputCost = (newUsage.outputTokens / 1000) * outputCostPer1K;
+    
+    setTokenUsage(prev => ({
+      inputTokens: prev.inputTokens + (newUsage.inputTokens || 0),
+      outputTokens: prev.outputTokens + (newUsage.outputTokens || 0),
+      totalTokens: prev.totalTokens + (newUsage.inputTokens || 0) + (newUsage.outputTokens || 0),
+      estimatedCost: prev.estimatedCost + inputCost + outputCost
+    }));
+  }, []);
+
+  // Initialize locked state if configuration is already stored
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem('gemini_api_key');
+    
+    if (storedApiKey && storedApiKey.trim()) {
+      setIsConfigLocked(true);
+      setConfigStatus('success');
+      setConfigMessage('✅ Configuration loaded from previous session.');
+    }
+  }, []);
+
+  // Node types with access to settings state
+  const nodeTypes = useMemo(() => ({
+    chart: (props) => (
+      <ChartNode 
+        {...props} 
+        selected={props.data.selected}
+        onSelect={props.data.onSelect}
+        apiKey={apiKey}
+        selectedModel={selectedModel}
+        setShowSettings={setShowSettings}
+        updateTokenUsage={updateTokenUsage}
+      />
+    ),
+    arrow: ArrowNode,
+    textbox: TextBoxNode,
+    table: TableNode,
+    expression: (props) => (
+      <ExpressionNode
+        {...props}
+        apiKey={apiKey}
+        selectedModel={selectedModel}
+        setShowSettings={setShowSettings}
+        updateTokenUsage={updateTokenUsage}
+      />
+    )
+  }), [apiKey, selectedModel, setShowSettings, updateTokenUsage]);
 
   // Viewport transform: [translateX, translateY, zoom]
   const transform = useStore(s => s.transform);
@@ -2495,35 +2593,35 @@ function ReactFlowWrapper() {
           ];
           
           return createSafeFigure(data, {
-            // Remove title to avoid duplication with ChartNode title
-            xaxis: {
-              title: { text: xKey, font: { size: 14, color: '#4a5568' } },
-              tickangle: -45
-            },
-            yaxis: {
-              title: { text: measureKeys[0], font: { size: 14, color: '#3182ce' } },
-              side: 'left'
-            },
-            yaxis2: {
-              title: { text: measureKeys[1], font: { size: 14, color: '#e53e3e' } },
-              side: 'right',
-              overlaying: 'y'
-            },
-            margin: { t: 20, b: 120, l: 80, r: 80 }, // Reduced top margin, increased bottom for legend
-            plot_bgcolor: '#fafafa',
-            paper_bgcolor: 'white',
-            showlegend: true,
-            legend: {
-              orientation: 'h',
-              x: 0.5,
-              xanchor: 'center',
-              y: -0.25, // Moved further down
-              yanchor: 'top',
-              bgcolor: 'rgba(255,255,255,0.8)',
-              bordercolor: '#E2E8F0',
-              borderwidth: 1,
-              font: { size: 12 }
-            }
+              // Remove title to avoid duplication with ChartNode title
+              xaxis: {
+                title: { text: xKey, font: { size: 14, color: '#4a5568' } },
+                tickangle: -45
+              },
+              yaxis: {
+                title: { text: measureKeys[0], font: { size: 14, color: '#3182ce' } },
+                side: 'left'
+              },
+              yaxis2: {
+                title: { text: measureKeys[1], font: { size: 14, color: '#e53e3e' } },
+                side: 'right',
+                overlaying: 'y'
+              },
+              margin: { t: 20, b: 120, l: 80, r: 80 }, // Reduced top margin, increased bottom for legend
+              plot_bgcolor: '#fafafa',
+              paper_bgcolor: 'white',
+              showlegend: true,
+              legend: {
+                orientation: 'h',
+                x: 0.5,
+                xanchor: 'center',
+                y: -0.25, // Moved further down
+                yanchor: 'top',
+                bgcolor: 'rgba(255,255,255,0.8)',
+                bordercolor: '#E2E8F0',
+                borderwidth: 1,
+                font: { size: 12 }
+              }
           });
         }
       }
@@ -2537,36 +2635,36 @@ function ReactFlowWrapper() {
       }));
       
       return createSafeFigure(data, { 
-        // Remove title to avoid duplication with ChartNode title
-        xaxis: {
-          title: {
-            text: xKey,
-            font: { size: 14, color: '#4a5568' }
+          // Remove title to avoid duplication with ChartNode title
+          xaxis: {
+            title: {
+              text: xKey,
+              font: { size: 14, color: '#4a5568' }
+            },
+            tickangle: -45
           },
-          tickangle: -45
-        },
-        yaxis: {
-          title: {
-            text: measureKeys.length > 1 ? 'Values' : measureKeys[0],
-            font: { size: 14, color: '#4a5568' }
-          }
-        },
-        barmode: 'group', 
-        margin: { t: 20, b: measureKeys.length > 1 ? 100 : 80, l: 80, r: 30 }, // Reduced top margin, more bottom space for legend
-        plot_bgcolor: '#fafafa',
-        paper_bgcolor: 'white',
-        showlegend: measureKeys.length > 1,
-        legend: measureKeys.length > 1 ? {
-          orientation: 'h',
-          x: 0.5,
-          xanchor: 'center',
-          y: -0.2,
-          yanchor: 'top',
-          bgcolor: 'rgba(255,255,255,0.8)',
-          bordercolor: '#E2E8F0',
-          borderwidth: 1,
-          font: { size: 12 }
-        } : undefined
+          yaxis: {
+            title: {
+              text: measureKeys.length > 1 ? 'Values' : measureKeys[0],
+              font: { size: 14, color: '#4a5568' }
+            }
+          },
+          barmode: 'group', 
+          margin: { t: 20, b: measureKeys.length > 1 ? 100 : 80, l: 80, r: 30 }, // Reduced top margin, more bottom space for legend
+          plot_bgcolor: '#fafafa',
+          paper_bgcolor: 'white',
+          showlegend: measureKeys.length > 1,
+          legend: measureKeys.length > 1 ? {
+            orientation: 'h',
+            x: 0.5,
+            xanchor: 'center',
+            y: -0.2,
+            yanchor: 'top',
+            bgcolor: 'rgba(255,255,255,0.8)',
+            bordercolor: '#E2E8F0',
+            borderwidth: 1,
+            font: { size: 12 }
+          } : undefined
       });
     }
     
@@ -2584,12 +2682,12 @@ function ReactFlowWrapper() {
         y: xValues.map(v => (rows.find(r => r[xKey] === v)?.[m]) ?? 0)
       }];
       return createSafeFigure(data, {
-        // Remove title to avoid duplication with ChartNode title
-        xaxis: { title: { text: xKey, font: { size: 14, color: '#4a5568' } }, tickangle: -45 },
-        yaxis: { title: { text: m, font: { size: 14, color: '#4a5568' } } },
-        margin: { t: 20, b: 80, l: 80, r: 30 }, // Reduced top margin
-        plot_bgcolor: '#fafafa',
-        paper_bgcolor: 'white'
+          // Remove title to avoid duplication with ChartNode title
+          xaxis: { title: { text: xKey, font: { size: 14, color: '#4a5568' } }, tickangle: -45 },
+          yaxis: { title: { text: m, font: { size: 14, color: '#4a5568' } } },
+          margin: { t: 20, b: 80, l: 80, r: 30 }, // Reduced top margin
+          plot_bgcolor: '#fafafa',
+          paper_bgcolor: 'white'
       });
     }
 
@@ -2626,35 +2724,35 @@ function ReactFlowWrapper() {
       }));
       
       return createSafeFigure(data, { 
-        // Remove title to avoid duplication with ChartNode title
-        xaxis: {
-          title: {
-            text: 'Categories',
-            font: { size: 14, color: '#4a5568' }
+          // Remove title to avoid duplication with ChartNode title
+          xaxis: {
+            title: {
+              text: 'Categories',
+              font: { size: 14, color: '#4a5568' }
+            },
+            tickangle: -45
           },
-          tickangle: -45
-        },
-        yaxis: {
-          title: {
-            text: 'Value',
-            font: { size: 14, color: '#4a5568' }
+          yaxis: {
+            title: {
+              text: 'Value',
+              font: { size: 14, color: '#4a5568' }
+            }
+          },
+          margin: { t: 20, b: 100, l: 80, r: 30 }, // Reduced top margin, increased bottom for legend
+          plot_bgcolor: '#fafafa',
+          paper_bgcolor: 'white',
+          showlegend: true,
+          legend: {
+            orientation: 'h',
+            x: 0.5,
+            xanchor: 'center',
+            y: -0.2,
+            yanchor: 'top',
+            bgcolor: 'rgba(255,255,255,0.8)',
+            bordercolor: '#E2E8F0',
+            borderwidth: 1,
+            font: { size: 12 }
           }
-        },
-        margin: { t: 20, b: 100, l: 80, r: 30 }, // Reduced top margin, increased bottom for legend
-        plot_bgcolor: '#fafafa',
-        paper_bgcolor: 'white',
-        showlegend: true,
-        legend: {
-          orientation: 'h',
-          x: 0.5,
-          xanchor: 'center',
-          y: -0.2,
-          yanchor: 'top',
-          bgcolor: 'rgba(255,255,255,0.8)',
-          bordercolor: '#E2E8F0',
-          borderwidth: 1,
-          font: { size: 12 }
-        }
       });
     }
     
@@ -2827,7 +2925,7 @@ function ReactFlowWrapper() {
             paper_bgcolor: 'white',
             showlegend: false,
             legend: undefined
-          } 
+          }
         };
         
         setNodes(nds => nds.concat({ 
@@ -2891,7 +2989,7 @@ function ReactFlowWrapper() {
             paper_bgcolor: 'white',
             showlegend: false,
             legend: undefined
-          } 
+          }
         };
         
         setNodes(nds => nds.concat({ 
@@ -2915,6 +3013,226 @@ function ReactFlowWrapper() {
     } catch (e) {
       alert('Visualization failed: ' + e.message);
     }
+  };
+
+  // Helper function to format user-friendly error messages
+  const formatErrorMessage = (errorMessage) => {
+    if (!errorMessage) return 'Unknown error occurred.';
+    
+    // Check for quota exceeded errors
+    if (errorMessage.includes('quota') || errorMessage.includes('429') || errorMessage.includes('exceeded')) {
+      return 'You exceeded your current quota, please check your plan and billing details.';
+    }
+    
+    // Check for API key errors
+    if (errorMessage.includes('API key not valid') || errorMessage.includes('401') || errorMessage.includes('403')) {
+      return 'Invalid API key. Please check your API key and try again.';
+    }
+    
+    // Check for rate limiting
+    if (errorMessage.includes('rate limit') || errorMessage.includes('too many requests')) {
+      return 'Rate limit exceeded. Please wait a moment and try again.';
+    }
+    
+    // Check for network errors
+    if (errorMessage.includes('Network error') || errorMessage.includes('fetch')) {
+      return 'Network connection error. Please check your internet connection.';
+    }
+    
+    // For other errors, try to extract a short meaningful message
+    const lines = errorMessage.split('\n');
+    const firstLine = lines[0];
+    
+    // If first line is too long, truncate it
+    if (firstLine.length > 100) {
+      return firstLine.substring(0, 100) + '...';
+    }
+    
+    return firstLine;
+  };
+
+  // Settings panel component
+  const SettingsPanel = () => {
+    const handleTestConfiguration = async () => {
+      if (!apiKey.trim()) {
+        setConfigStatus('error');
+        setConfigMessage('Please enter an API key');
+        return;
+      }
+
+      setConfigStatus('testing');
+      setConfigMessage('Testing configuration...');
+
+      try {
+        const response = await fetch(`${API}/test-config`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            api_key: apiKey,
+            model: selectedModel
+          })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          setConfigStatus('success');
+          setConfigMessage('✅ Configuration successful! LLM is ready to use.');
+          localStorage.setItem('gemini_api_key', apiKey);
+          localStorage.setItem('gemini_model', selectedModel);
+          setIsConfigLocked(true); // Lock the configuration after success
+          
+          // Track the test token usage
+          if (result.token_usage) {
+            updateTokenUsage(result.token_usage);
+          }
+        } else {
+          setConfigStatus('error');
+          setConfigMessage(`❌ ${formatErrorMessage(result.error)}`);
+        }
+      } catch (error) {
+        setConfigStatus('error');
+        setConfigMessage(`❌ ${formatErrorMessage(error.message)}`);
+      }
+    };
+
+    const handleEditConfiguration = () => {
+      setIsConfigLocked(false);
+      setConfigStatus('idle');
+      setConfigMessage('');
+    };
+
+    return (
+      <div className="absolute top-12 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-80 z-50">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <Settings size={18} />
+            AI Settings
+          </h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowSettings(false)}
+            className="h-6 w-6 p-0"
+          >
+            <X size={14} />
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          {/* API Key Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Gemini API Key
+            </label>
+            <div className="relative">
+              <Input
+                type={showApiKey ? "text" : "password"}
+                placeholder="Enter your Gemini API key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                disabled={isConfigLocked}
+                className={`w-full pr-10 ${isConfigLocked ? 'bg-gray-50 text-gray-500' : ''}`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Get your free API key from{' '}
+              <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                Google AI Studio
+              </a>
+            </p>
+          </div>
+
+          {/* Model Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Model Selection
+            </label>
+            <Select value={selectedModel} onValueChange={setSelectedModel} disabled={isConfigLocked}>
+              <SelectTrigger className={`w-full ${isConfigLocked ? 'bg-gray-50 text-gray-500' : ''}`}>
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
+                <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                <SelectItem value="gemini-2.0-flash-exp">Gemini 2.0 Flash Experimental</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Test/Edit Configuration Button */}
+          <Button 
+            onClick={isConfigLocked ? handleEditConfiguration : handleTestConfiguration} 
+            className={`w-full gap-2 ${isConfigLocked ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+            disabled={configStatus === 'testing'}
+          >
+            {configStatus === 'testing' ? (
+              <>
+                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                Testing...
+              </>
+            ) : isConfigLocked ? (
+              <>
+                <Edit size={16} />
+                Edit Configuration
+              </>
+            ) : (
+              <>
+                <Check size={16} />
+                Test Configuration
+              </>
+            )}
+          </Button>
+
+          {/* Status Message */}
+          {configMessage && (
+            <div className={`p-3 rounded-md text-sm break-words whitespace-normal leading-relaxed ${
+              configStatus === 'success' 
+                ? 'bg-green-50 text-green-800 border border-green-200' 
+                : configStatus === 'error'
+                ? 'bg-red-50 text-red-800 border border-red-200'
+                : 'bg-blue-50 text-blue-800 border border-blue-200'
+            }`}>
+              {configMessage}
+            </div>
+          )}
+
+          {/* Token Usage Display */}
+          {tokenUsage.totalTokens > 0 && (
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Token Usage (This Session)</h4>
+              <div className="space-y-1 text-xs text-gray-600">
+                <div className="flex justify-between">
+                  <span>Input Tokens:</span>
+                  <span>{tokenUsage.inputTokens.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Output Tokens:</span>
+                  <span>{tokenUsage.outputTokens.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between font-medium">
+                  <span>Total Tokens:</span>
+                  <span>{tokenUsage.totalTokens.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-green-600 font-medium">
+                  <span>Est. Cost:</span>
+                  <span>${tokenUsage.estimatedCost.toFixed(4)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -3038,8 +3356,22 @@ function ReactFlowWrapper() {
           </div>
         )}
         
-        {/* Tool status indicator */}
-        <div className="absolute top-4 right-4 bg-white border border-gray-300 rounded-lg px-3 py-1 text-sm text-gray-600 shadow-sm z-10">
+        {/* Settings Button and Panel */}
+        <div className="absolute top-4 right-4 z-20">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowSettings(!showSettings)}
+            className="h-8 w-8 p-0 bg-white border border-gray-300 shadow-sm hover:bg-gray-50"
+            title="AI Settings"
+          >
+            <Settings size={16} className="text-gray-600" />
+          </Button>
+          {showSettings && <SettingsPanel />}
+        </div>
+        
+        {/* Tool status indicator - moved to avoid overlap with settings */}
+        <div className="absolute top-4 right-16 bg-white border border-gray-300 rounded-lg px-3 py-1 text-sm text-gray-600 shadow-sm z-10">
           <span className="font-medium">Active Tool:</span> {activeTool === 'select' ? 'Select' : activeTool === 'arrow' ? 'Arrow' : 'Text Box'}
         </div>
         

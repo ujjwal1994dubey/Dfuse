@@ -64,10 +64,18 @@ class ExpressionValidateRequest(BaseModel):
 class AIExploreRequest(BaseModel):
     chart_id: str
     user_query: str
+    api_key: Optional[str] = None
+    model: str = "gemini-2.0-flash"
 
 class MetricCalculationRequest(BaseModel):
     user_query: str
     dataset_id: str
+    api_key: Optional[str] = None
+    model: str = "gemini-2.0-flash"
+
+class ConfigTestRequest(BaseModel):
+    api_key: str
+    model: str = "gemini-2.0-flash"
 
 # -----------------------
 # Helpers
@@ -744,8 +752,33 @@ async def get_dataset_measures(dataset_id: str):
     }
 
 
-# Initialize AI Data Formulator
-ai_formulator = GeminiDataFormulator()
+# Initialize AI Data Formulator per request now (removed global instance)
+
+@app.post("/test-config")
+async def test_config(request: ConfigTestRequest):
+    """
+    Test the user's API key and model configuration
+    """
+    try:
+        print(f"🔧 Testing configuration:")
+        print(f"   API Key: {'*' * (len(request.api_key)-8) + request.api_key[-8:] if len(request.api_key) > 8 else '***'}")
+        print(f"   Model: {request.model}")
+        
+        # Create AI formulator with user's credentials
+        ai_formulator = GeminiDataFormulator(api_key=request.api_key, model=request.model)
+        
+        # Test the configuration
+        result = ai_formulator.test_configuration()
+        
+        print(f"✅ Configuration test result: {result.get('success', False)}")
+        return result
+        
+    except Exception as e:
+        print(f"❌ Configuration test failed: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Configuration test failed: {str(e)}"
+        }
 
 @app.post("/ai-explore")
 async def ai_explore_data(request: AIExploreRequest):
@@ -767,40 +800,50 @@ async def ai_explore_data(request: AIExploreRequest):
         # Get the full original dataset
         full_dataset = DATASETS[dataset_id]
         
-        print(f"🤖 SIMPLIFIED AI Exploration started:")
+        print(f"🤖 AI Exploration started:")
         print(f"   Query: '{request.user_query}'")
         print(f"   Dataset shape: {full_dataset.shape}")
-        print(f"   Available columns: {list(full_dataset.columns)}")
+        print(f"   Model: {request.model}")
+        print(f"   API Key: {'*' * (len(request.api_key or '')-8) + (request.api_key or '')[-8:] if (request.api_key or '') and len(request.api_key) > 8 else '***'}")
         
-        # Use direct pandas DataFrame agent for text-based results
+        # Create AI formulator with user's credentials
+        ai_formulator = GeminiDataFormulator(api_key=request.api_key, model=request.model)
+        
+        # Use pandas DataFrame agent for text-based results
         ai_result = ai_formulator.get_text_analysis(request.user_query, full_dataset)
         
         print(f"✅ AI Analysis completed successfully!")
         print(f"   Result length: {len(ai_result.get('answer', ''))}")
         
-        # Return complete AI analysis response including code_steps for frontend display
+        # Return complete AI analysis response including code_steps and token_usage
         return {
             "success": ai_result.get("success", True),
             "answer": ai_result.get("answer", "I couldn't process your query."),
             "query": request.user_query,
             "dataset_info": f"Dataset: {full_dataset.shape[0]} rows, {full_dataset.shape[1]} columns",
-            "code_steps": ai_result.get("code_steps", []),  # ⭐ Include Python code for frontend display
+            "code_steps": ai_result.get("code_steps", []),
             "reasoning_steps": ai_result.get("reasoning_steps", []),
             "tabular_data": ai_result.get("tabular_data", []),
-            "has_table": ai_result.get("has_table", False)
+            "has_table": ai_result.get("has_table", False),
+            "token_usage": ai_result.get("token_usage", {})
         }
         
     except Exception as e:
         print(f"❌ AI Exploration failed: {str(e)}")
+        error_message = str(e)
+        if "401" in error_message or "403" in error_message or "API key" in error_message:
+            error_message += " Please check your API key in Settings."
+        
         return {
             "success": False,
-            "answer": f"Sorry, I encountered an error: {str(e)}",
+            "answer": f"I encountered an error while processing your query: {error_message}",
             "query": request.user_query,
             "dataset_info": "",
-            "code_steps": [],  # Empty code steps on error
+            "code_steps": [],
             "reasoning_steps": [],
             "tabular_data": [],
-            "has_table": False
+            "has_table": False,
+            "token_usage": {}
         }
 
 
@@ -816,10 +859,15 @@ async def ai_calculate_metric(request: MetricCalculationRequest):
     df = DATASETS[request.dataset_id]
     
     try:
-        print(f"🧮 AI Metric calculation request:")
-        print(f"   Dataset: {request.dataset_id}")
+        print(f"🧮 AI Metric calculation started:")
         print(f"   Query: '{request.user_query}'")
+        print(f"   Dataset: {request.dataset_id}")
         print(f"   Data shape: {df.shape}")
+        print(f"   Model: {request.model}")
+        print(f"   API Key: {'*' * (len(request.api_key or '')-8) + (request.api_key or '')[-8:] if (request.api_key or '') and len(request.api_key) > 8 else '***'}")
+        
+        # Create AI formulator with user's credentials
+        ai_formulator = GeminiDataFormulator(api_key=request.api_key, model=request.model)
         
         # Use AI to calculate the metric
         result = ai_formulator.calculate_metric(request.user_query, request.dataset_id, df)
@@ -836,4 +884,22 @@ async def ai_calculate_metric(request: MetricCalculationRequest):
         
     except Exception as e:
         print(f"❌ AI Metric calculation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to calculate metric: {str(e)}")
+        error_message = str(e)
+        if "401" in error_message or "403" in error_message or "API key" in error_message:
+            error_message += " Please check your API key in Settings."
+        
+        raise HTTPException(status_code=500, detail=f"Failed to calculate metric: {error_message}")
+
+
+
+
+@app.post("/list-models")
+def list_models( api_key: str) -> List[Dict[str, str]]:
+    
+        # Google Gemini doesn’t expose a simple model list API yet.
+        return [
+            {"label": "Gemini 1.5 Pro", "value": "gemini-1.5-pro"},
+            {"label": "Gemini 1.5 Flash", "value": "gemini-1.5-flash"},
+            {"label": "Gemini 2.5 Flash", "value": "gemini-2.5-flash"}
+            ]
+           
