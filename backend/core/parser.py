@@ -390,3 +390,125 @@ class DfuseParser:
                 return col
         
         return None
+
+    def _parse_pandas_output_to_table(self, output_text: str) -> Optional[Dict[str, Any]]:
+        """
+        Enhanced parser for pandas output formats (Series, DataFrame, etc.)
+        """
+        try:
+            lines = output_text.strip().split('\n')
+            
+            # Remove empty lines and title lines
+            content_lines = []
+            for line in lines:
+                line = line.strip()
+                if line and not line.endswith(':') and line != 'Name: Revenue, dtype: float64' and 'dtype:' not in line:
+                    content_lines.append(line)
+            
+            if len(content_lines) < 2:
+                return None
+                
+            print(f"🔍 Parsing pandas output - {len(content_lines)} content lines")
+            
+            # Pattern 1: Pandas Series with index (most common for groupby)
+            # Format: "Product\nBookshelf    20500\nDesk    42000"
+            if len(content_lines) >= 2:
+                # Check if first line looks like a column/index name
+                first_line = content_lines[0].strip()
+                
+                # Check if subsequent lines have consistent format: "name    value"
+                data_rows = []
+                series_format = True
+                
+                for i in range(1, len(content_lines)):
+                    line = content_lines[i].strip()
+                    # Split on whitespace, but handle names with spaces
+                    parts = line.split()
+                    
+                    if len(parts) >= 2:
+                        # Last part should be numeric (value)
+                        try:
+                            float(parts[-1])
+                            # Everything except the last part is the name/index
+                            name = ' '.join(parts[:-1])
+                            value = parts[-1]
+                            data_rows.append([name, value])
+                        except ValueError:
+                            series_format = False
+                            break
+                    else:
+                        series_format = False
+                        break
+                
+                # If we detected Series format, create table
+                if series_format and len(data_rows) > 0:
+                    print(f"✅ Detected pandas Series format with {len(data_rows)} rows")
+                    return {
+                        "columns": [first_line, "Value"],
+                        "rows": data_rows
+                    }
+            
+            # Pattern 2: DataFrame format with column headers
+            # Format: "  Product  Revenue\n0  Laptop  30000\n1  Phone   25000"
+            if len(content_lines) >= 3:
+                # Check if first line has multiple column names
+                potential_headers = content_lines[0].split()
+                
+                if len(potential_headers) >= 2:
+                    data_rows = []
+                    df_format = True
+                    
+                    for i in range(1, len(content_lines)):
+                        line = content_lines[i].strip()
+                        parts = line.split()
+                        
+                        # Skip index column if present (starts with number)
+                        if len(parts) >= len(potential_headers):
+                            if parts[0].isdigit():
+                                row_data = parts[1:1+len(potential_headers)]
+                            else:
+                                row_data = parts[:len(potential_headers)]
+                            
+                            if len(row_data) == len(potential_headers):
+                                data_rows.append(row_data)
+                            else:
+                                df_format = False
+                                break
+                        else:
+                            df_format = False
+                            break
+                    
+                    if df_format and len(data_rows) > 0:
+                        print(f"✅ Detected pandas DataFrame format with {len(data_rows)} rows")
+                        return {
+                            "columns": potential_headers,
+                            "rows": data_rows
+                        }
+            
+            # Pattern 3: Simple key-value pairs
+            # Format: "Laptop: 40000\nPhone: 25000"
+            if len(content_lines) >= 2:
+                kv_rows = []
+                kv_format = True
+                
+                for line in content_lines:
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        kv_rows.append([key.strip(), value.strip()])
+                    else:
+                        kv_format = False
+                        break
+                
+                if kv_format and len(kv_rows) > 0:
+                    print(f"✅ Detected key-value format with {len(kv_rows)} rows")
+                    return {
+                        "columns": ["Item", "Value"],
+                        "rows": kv_rows
+                    }
+            
+            print("ℹ️ No recognizable table format detected")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Error parsing pandas output: {e}")
+            return None
