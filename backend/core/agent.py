@@ -5,6 +5,11 @@ import pandas as pd
 import numpy as np
 import re
 import google.generativeai as genai
+from .core.schema.DfuseSchema import _auto_detect_columns, _ensure_json_safe
+from .core.charting.DfuseCharting import _suggest_chart_type
+from .core.gemini_client import GeminiClient
+from .core.parser import DfuseParser
+from .core.executor import DfuseExecutor
 
 # Pandas DataFrame Agent imports
 try:
@@ -116,17 +121,17 @@ Execute the operation:"""
             # If we got a transformed DataFrame, determine dimensions and measures
             if transformed_data is not None and not transformed_data.empty:
                 # Auto-detect dimensions and measures from transformed data
-                new_dimensions, new_measures = self._auto_detect_columns(transformed_data, dimensions, measures)
+                new_dimensions, new_measures = _auto_detect_columns(transformed_data, dimensions, measures)
                 
                 # Handle JSON serialization safety
-                transformed_data = self._ensure_json_safe(transformed_data)
+                transformed_data = _ensure_json_safe(transformed_data)
                 
                 return {
                     "data": transformed_data,
                     "dimensions": new_dimensions,
                     "measures": new_measures,
                     "transformations": transformations,
-                    "chart_suggestion": self._suggest_chart_type(new_dimensions, new_measures, transformed_data),
+                    "chart_suggestion": _suggest_chart_type(new_dimensions, new_measures, transformed_data),
                     "method": "pandas_agent"
                 }
             else:
@@ -159,7 +164,7 @@ Execute the operation:"""
             
             if not LANGCHAIN_AVAILABLE or self.llm is None:
                 print("❌ LangChain not available, falling back to direct Gemini")
-                return self._direct_gemini_analysis(user_query, dataset)
+                return GeminiClient._direct_gemini_analysis(user_query, dataset)
             
             # PRIORITY: Use real dataset with custom pandas execution
             return self._execute_real_pandas_analysis(user_query, dataset)
@@ -306,12 +311,12 @@ Please analyze the data and provide your answer.
                 except Exception as run_error:
                     print(f"❌ Agent.run() also failed: {run_error}")
                     print("🔄 Falling back to direct Gemini analysis...")
-                    return self._direct_gemini_analysis(user_query, dataset)
+                    return GeminiClient._direct_gemini_analysis(user_query, dataset)
             
         except Exception as e:
             print(f"❌ Pandas DataFrame agent failed: {str(e)}")
             print("🔄 Falling back to direct Gemini analysis...")
-            return self._direct_gemini_analysis(user_query, dataset)
+            return GeminiClient._direct_gemini_analysis(user_query, dataset)
 
 
     def _execute_real_pandas_analysis(self, user_query: str, dataset: pd.DataFrame) -> Dict[str, Any]:
@@ -443,7 +448,7 @@ Generate ONLY the code, no explanations:"""
                     
                     if execution_output.strip():
                         try:
-                            parsed_table = self._parse_pandas_output_to_table(execution_output)
+                            parsed_table = DfuseParser._parse_pandas_output_to_table(execution_output)
                             if parsed_table:
                                 tabular_data = parsed_table
                                 has_table = True
@@ -481,7 +486,7 @@ Generate ONLY the code, no explanations:"""
         except Exception as e:
             print(f"❌ Real pandas analysis failed: {e}")
             print("🔄 Falling back to direct Gemini analysis...")
-            return self._direct_gemini_analysis(user_query, dataset)
+            return GeminiClient._direct_gemini_analysis(user_query, dataset)
 
 
     def _validate_agent_used_real_data(self, user_query: str, agent_answer: str, dataset: pd.DataFrame) -> bool:
@@ -682,10 +687,10 @@ Return only the filtered/transformed DataFrame as the final result.
                         code = step.tool_input
                         if 'df[(' in code and ')' in code:  # This looks like filtering code
                             # Execute the filtering code safely on our data
-                            return self._execute_pandas_filter_safely(code, data, user_query)
+                            return DfuseExecutor._execute_pandas_filter_safely(code, data, user_query)
             
             # Fallback: try to extract filtering logic from user query directly
-            return self._extract_and_apply_filter(user_query, data)
+            return DfuseExecutor._extract_and_apply_filter(user_query, data)
             
         except Exception as e:
             print(f"🤖 Agent execution failed: {e}")
