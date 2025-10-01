@@ -20,7 +20,7 @@ except ImportError as e:
     print(f"LangChain imports failed: {e}")
     LANGCHAIN_AVAILABLE = False
 
-class DefuseExecutor:
+class DfuseExecutor:
     """
     Data Formulator with Gemini 2.0 Flash for natural language data transformations
     """
