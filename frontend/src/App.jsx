@@ -4,7 +4,7 @@ import Plot from 'react-plotly.js';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Button, Badge, Card, CardHeader, CardContent, FileUpload, RadioGroup, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui';
-import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, AlertCircle, Eye, EyeOff, Edit } from 'lucide-react';
+import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, MenuIcon } from 'lucide-react';
 import './tiptap-styles.css';
 
 const API = 'http://localhost:8000';
@@ -125,7 +125,7 @@ const CHART_TYPES = {
       return {
         data: measureKeys.map((measure, i) => ({
           type: 'bar',
-          name: measure,
+          name: truncateLabel(measure), // Truncate long legend labels
           x: xValues,
           y: xValues.map(v => (data.find(r => r[xKey] === v)?.[measure]) ?? 0),
           marker: { color: ['#3182ce', '#38a169', '#d69e2e'][i] }
@@ -139,7 +139,7 @@ const CHART_TYPES = {
           yaxis: {
             title: { text: 'Value', font: { size: 14, color: '#4a5568' } }
           },
-          margin: { t: 20, b: 80, l: 80, r: 30 },
+          margin: { t: 20, b: 140, l: 80, r: 30 }, // Keep normal right margin
           plot_bgcolor: '#fafafa',
           paper_bgcolor: 'white',
           showlegend: measureKeys.length > 1,
@@ -147,10 +147,27 @@ const CHART_TYPES = {
             orientation: 'h',
             x: 0.5,
             xanchor: 'center',
-            y: -0.15,
+            y: -0.3, // Moved further down to avoid overlap
+            yanchor: 'top',
             bgcolor: 'rgba(255,255,255,0.8)',
             bordercolor: '#E2E8F0',
-            borderwidth: 1
+            borderwidth: 1,
+            font: { size: 11 },
+            tracegroupgap: 5, // Add gap between legend groups
+            itemsizing: 'constant',
+            itemwidth: 30,
+            // Add responsive behavior for many legend items  
+            ...(measureKeys.length > 8 ? {
+              orientation: 'v', // Switch to vertical for many items
+              x: 1.05, // Closer to chart to avoid excessive gap
+              xanchor: 'left',
+              y: 0.5,
+              yanchor: 'middle',
+              itemwidth: 30, // Reduced item width
+              font: { size: 10 }, // Smaller font
+              borderwidth: 0, // Remove border to save space
+              tracegroupgap: 2 // Reduced gap between items
+            } : {})
           } : undefined
         }
       };
@@ -264,7 +281,7 @@ const CHART_TYPES = {
       
       const chartData = uniqueProducts.map((product, i) => ({
         type: 'bar',
-        name: product,
+        name: truncateLabel(product), // Truncate long legend labels
         x: uniqueCategories,
         y: uniqueCategories.map(cat => groups[product]?.[cat] || 0),
         marker: { color: ['#3182ce', '#38a169', '#d69e2e', '#e53e3e', '#805ad5', '#dd6b20', '#38b2ac', '#ed64a6'][i % 8] }
@@ -296,7 +313,7 @@ const CHART_TYPES = {
           yaxis: {
             title: { text: measure, font: { size: 14, color: '#4a5568' } }
           },
-          margin: { t: 20, b: 80, l: 80, r: 30 },
+          margin: { t: 20, b: 140, l: 80, r: 30 }, // Keep normal right margin
           plot_bgcolor: '#fafafa',
           paper_bgcolor: 'white',
           showlegend: chartData.length > 1,
@@ -304,10 +321,27 @@ const CHART_TYPES = {
             orientation: 'h',
             x: 0.5,
             xanchor: 'center',
-            y: -0.15,
+            y: -0.3, // Moved further down to avoid overlap
+            yanchor: 'top',
             bgcolor: 'rgba(255,255,255,0.8)',
             bordercolor: '#E2E8F0',
-            borderwidth: 1
+            borderwidth: 1,
+            font: { size: 11 },
+            tracegroupgap: 5, // Add gap between legend groups
+            itemsizing: 'constant',
+            itemwidth: 30,
+            // Add responsive behavior for many legend items
+            ...(chartData.length > 10 ? {
+              orientation: 'v', // Switch to vertical for many items
+              x: 1.05, // Closer to chart to avoid excessive gap
+              xanchor: 'left',
+              y: 0.5,
+              yanchor: 'middle',
+              itemwidth: 30, // Reduced item width
+              font: { size: 10 }, // Smaller font
+              borderwidth: 0, // Remove border to save space
+              tracegroupgap: 2 // Reduced gap between items
+            } : {})
           } : undefined
         })
       };
@@ -416,8 +450,16 @@ const getDefaultChartType = (dims, measures) => {
   return supported.length > 0 ? supported[0] : CHART_TYPES.BAR;
 };
 
-// Universal layout sanitizer to ensure all layouts have proper legend configuration
+// Helper function to truncate long legend labels
+const truncateLabel = (label, maxLength = 12) => {
+  if (!label || typeof label !== 'string') return label;
+  if (label.length <= maxLength) return label;
+  return label.substring(0, maxLength - 3) + '...';
+};
+
+// Universal layout sanitizer to ensure all layouts have proper legend configuration and modebar spacing
 const sanitizeLayout = (layout) => {
+  const currentMargin = layout.margin || {};
   return {
     ...layout,
     // Ensure legend is always properly defined
@@ -427,7 +469,16 @@ const sanitizeLayout = (layout) => {
       bgcolor: layout.legend.bgcolor || 'rgba(255,255,255,0.8)',
       bordercolor: layout.legend.bordercolor || '#E2E8F0',
       borderwidth: layout.legend.borderwidth || 1
-    } : undefined
+    } : undefined,
+    // Ensure sufficient top margin for modebar (minimum 50px)
+    // Preserve existing margins (especially bottom and right margins for legends)
+    margin: {
+      t: Math.max(currentMargin.t || 20, 50),
+      b: Math.max(currentMargin.b || 60, currentMargin.b), // Preserve larger bottom margins for legends
+      l: currentMargin.l || 60, 
+      r: Math.max(currentMargin.r || 30, currentMargin.r), // Preserve larger right margins for vertical legends
+      ...currentMargin
+    }
   };
 };
 
@@ -510,15 +561,29 @@ function TableNode({ data }) {
   );
 }
 
-// Text Box Node Component  
-function TextBoxNode({ data, id }) {
+// Text Box Node Component - Sticky Note Style
+function TextBoxNode({ data, id, selected }) {
   const [isEditing, setIsEditing] = useState(data.isNew || false);
-  const [text, setText] = useState(data.text || 'Double-click to edit');
+  const [text, setText] = useState(data.text || '');
   const [tempText, setTempText] = useState(text);
+  const [textHeight, setTextHeight] = useState(220); // Dynamic height
+  const textareaRef = useRef(null);
+  const displayRef = useRef(null);
   
-  const handleDoubleClick = () => {
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (!isEditing) {
+      // Single click selects the node
+      data.onSelect?.(id);
+    }
+  };
+  
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    if (!isEditing) {
     setIsEditing(true);
     setTempText(text);
+    }
   };
   
   const handleKeyPress = (e) => {
@@ -540,26 +605,90 @@ function TextBoxNode({ data, id }) {
     data.onTextChange?.(id, tempText);
   };
   
+  // Auto-resize function to adjust height based on content
+  const autoResize = useCallback(() => {
+    if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      // Reset height to auto to get accurate scrollHeight
+      textarea.style.height = 'auto';
+      const scrollHeight = Math.max(textarea.scrollHeight, 180); // Min 180px
+      const newHeight = Math.max(scrollHeight + 40, 220); // Add padding, min 220px
+      setTextHeight(newHeight);
+      textarea.style.height = `${scrollHeight}px`;
+    }
+  }, []);
+  
+  // Auto-focus and show cursor when editing starts
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      // Place cursor at end of text
+      textareaRef.current.setSelectionRange(tempText.length, tempText.length);
+      // Auto-resize on edit start
+      autoResize();
+    }
+  }, [isEditing, autoResize, tempText.length]);
+  
+  // Calculate height for display text
+  useEffect(() => {
+    if (!isEditing && displayRef.current && text) {
+      const displayHeight = Math.max(displayRef.current.scrollHeight + 40, 220);
+      setTextHeight(displayHeight);
+    } else if (!text) {
+      setTextHeight(220); // Reset to default when empty
+    }
+  }, [text, isEditing]);
+  
+  // Dynamic border style based on selection state
+  const borderStyle = selected ? 'border-yellow-500' : 'border-yellow-300';
+  const shadowStyle = selected ? 'shadow-xl' : 'shadow-lg hover:shadow-xl';
+  
   return (
     <div 
-      className="bg-yellow-100 border-2 border-yellow-300 rounded-lg p-3 min-w-[200px] min-h-[60px] cursor-text shadow-sm"
+      className={`bg-yellow-100 border-2 ${borderStyle} rounded-xl p-4 w-[220px] cursor-pointer ${shadowStyle} transition-all duration-200 relative`}
+      onClick={handleClick}
       onDoubleClick={handleDoubleClick}
+      style={{ height: `${textHeight}px`, minHeight: '220px' }}
     >
       {isEditing ? (
         <textarea
+          ref={textareaRef}
           value={tempText}
-          onChange={(e) => setTempText(e.target.value)}
+          onChange={(e) => {
+            setTempText(e.target.value);
+            // Auto-resize on every change
+            setTimeout(autoResize, 0);
+          }}
           onKeyDown={handleKeyPress}
           onBlur={handleBlur}
-          className="w-full h-full bg-transparent border-none outline-none resize-none font-medium text-gray-800"
-          autoFocus
-          style={{ minHeight: '40px' }}
+          className="w-full bg-transparent border-none outline-none resize-none font-medium text-gray-800 placeholder-gray-400 leading-relaxed"
+          placeholder="Double click to write anything..."
+          style={{ 
+            height: `${textHeight - 40}px`,
+            minHeight: '180px',
+            caretColor: '#374151' // Ensure cursor is visible
+          }}
         />
       ) : (
-        <div className="whitespace-pre-wrap font-medium text-gray-800">
+        <div 
+          ref={displayRef}
+          className="w-full overflow-hidden"
+          style={{ minHeight: `${textHeight - 40}px` }}
+        >
+          {text ? (
+            <div className="whitespace-pre-wrap font-medium text-gray-800 leading-relaxed">
           {text}
         </div>
+          ) : (
+            <div className="text-gray-400 font-medium italic leading-relaxed">
+              Double click to write anything...
+        </div>
       )}
+        </div>
+      )}
+      
+      {/* Subtle sticky note corner fold effect */}
+      <div className="absolute top-0 right-0 w-8 h-8 bg-yellow-200 opacity-50 rounded-tr-xl"></div>
     </div>
   );
 }
@@ -1443,7 +1572,7 @@ function FilterDimension({ dimension, datasetId, selectedValues, onToggle }) {
 }
 
 // Toolbar Component
-function Toolbar({ activeTool, onToolChange, selectedCharts = [], onMergeCharts, onClearSelection }) {
+function Toolbar({ activeTool, onToolChange, selectedCharts = [], onMergeCharts, onClearSelection, onAutoLayout }) {
   const tools = [
     { id: 'select', name: 'Select', icon: MousePointer2, description: 'Select and move items' },
     { id: 'arrow', name: 'Arrow', icon: MoveUpRight, description: 'Create arrows between points' },
@@ -1515,6 +1644,16 @@ function Toolbar({ activeTool, onToolChange, selectedCharts = [], onMergeCharts,
             <span className="text-xs font-medium">Clear</span>
           </button>
         )}
+        
+        {/* Hierarchical Layout Tool */}
+        <button
+          onClick={onAutoLayout}
+          className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 group hover:bg-purple-100 text-purple-700 cursor-pointer"
+          title="Arrange charts in organized rows with proper spacing"
+        >
+          <GitBranch size={18} className="mb-1" />
+          <span className="text-xs font-medium">Arrange</span>
+        </button>
       </div>
     </div>
   );
@@ -1575,7 +1714,10 @@ function ChartTypeSelector({ dimensions = [], measures = [], currentType, onType
         return (
           <button
             key={type.id}
-            onClick={() => onTypeChange(type.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onTypeChange(type.id);
+            }}
             className={`p-1.5 rounded transition-all duration-150 ${
               isActive 
                 ? 'bg-blue-500 text-white shadow-sm' 
@@ -1641,6 +1783,28 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
   const handleSelect = (e) => {
     e.stopPropagation();
     onSelect(id);
+  };
+
+  // Handle selection only for specific areas (not buttons or plot area)
+  const handleChartAreaClick = (e) => {
+    // Only select if clicking directly on empty container areas
+    // NOT on plot area (users need that for data interaction)
+    const target = e.target;
+    const currentTarget = e.currentTarget;
+    
+    // Check what was clicked
+    const isPlotElement = target.closest('.js-plotly-plot') || 
+                         target.closest('.main-svg') || 
+                         target.closest('.plotly') ||
+                         target.closest('svg');
+    const isButton = target.closest('button') || target.closest('[role="button"]');
+    const isDropdown = target.closest('[role="menu"]') || target.closest('[role="menuitem"]');
+    
+    // Only allow selection if clicking directly on the empty container
+    // NOT on plot elements (preserve Plotly interactions like lasso select, zoom, etc.)
+    if (target === currentTarget && !isButton && !isDropdown && !isPlotElement) {
+      handleSelect(e);
+    }
   };
   
   // Handle chart type changes
@@ -1758,27 +1922,40 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
   const isHeatmap = strategy === 'same-dimension-different-dimensions-heatmap';
   const isMultiVariable = dimensions.length >= 1 && measures.length >= 1;
   const isThreeVariable = (dimensions.length >= 2 && measures.length >= 1) || (dimensions.length >= 1 && measures.length >= 2);
+  const isFusedWithLegend = isFused && (
+    (strategy === 'same-dimension-different-measures') || 
+    (strategy === 'same-measure-different-dimensions-stacked')
+  );
   
-  const chartWidth = (isDualAxis || isHeatmap) ? '1000px' : isMultiVariable ? '760px' : '380px';
-  const chartHeight = (isDualAxis || isHeatmap || isThreeVariable) ? '400px' : '300px';
+  // Expand chart width when using vertical legend (more space available)
+  const hasVerticalLegend = isFused && (
+    (strategy === 'same-dimension-different-measures' && measures.length > 8) ||
+    (strategy === 'same-measure-different-dimensions-stacked' && dimensions.length > 10)
+  );
   
-  const canChangeAgg = Array.isArray(dimensions) && dimensions.length >= 1 && Array.isArray(measures) && measures.length >= 1 && (agg || 'sum') !== 'count';
+  const chartWidth = (isDualAxis || isHeatmap) ? '1000px' : 
+    isMultiVariable ? (hasVerticalLegend ? '1000px' : '760px') : '380px';
+  const chartHeight = (isDualAxis || isHeatmap || isThreeVariable) ? (isFusedWithLegend ? '500px' : '400px') : '300px';
+  
+  const canChangeAgg = Array.isArray(dimensions) && dimensions.length >= 1 && Array.isArray(measures) && measures.length >= 1 && (agg || 'sum') !== 'count' && !isFused;
   
   return (
     <div 
-      className={`bg-white rounded-2xl shadow p-3 border-2 transition-all cursor-pointer ${
+      className={`bg-white rounded-2xl shadow p-3 border-2 transition-all ${
         selected 
           ? 'border-blue-500 bg-blue-50 shadow-lg' 
           : 'border-transparent hover:border-gray-300'
       } ${isFused ? 'ring-2 ring-green-200' : ''}`}
       style={{ width: chartWidth }}
-      onClick={handleSelect}
       onMouseEnter={() => onChartHover?.(true)}
       onMouseLeave={() => onChartHover?.(false)}
     >
       {/* Clean Header with Title and Menu */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex-1">
+        <div 
+          className="flex-1 cursor-pointer" 
+          onClick={handleSelect}
+        >
           <div className="font-semibold">{title}</div>
         </div>
         
@@ -1893,17 +2070,50 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
       </div>
       
       {/* Chart Plot - Now with more space! */}
+      <div 
+        className="chart-plot-container cursor-pointer"
+        onClick={handleChartAreaClick}
+      >
       {currentFigure && currentFigure.data && currentFigure.layout ? (
         <Plot 
           data={currentFigure.data || []} 
           layout={sanitizeLayout(currentFigure.layout)} 
           style={{ width: '100%', height: chartHeight }} 
           useResizeHandler 
-          config={{ displayModeBar: false }}
+          config={{
+            displayModeBar: true,
+            displaylogo: false, // Hide Plotly logo
+            modeBarButtons: [
+              [
+                'zoomIn2d',
+                'zoomOut2d',
+                'resetScale2d',
+                'lasso2d',
+                'select2d',
+                'autoScale2d',
+                'toImage'
+              ]
+            ],
+            modeBarButtonsToRemove: [
+              'zoom2d',
+              'pan2d',
+              'toggleSpikelines',
+              'sendDataToCloud',
+              'editInChartStudio'
+            ],
+            toImageButtonOptions: {
+              format: 'png',
+              filename: title?.replace(/[^a-z0-9]/gi, '_') || 'chart',
+              height: 500,
+              width: 700,
+              scale: 1
+            }
+          }}
         />
       ) : (
         <div className="text-sm text-gray-500">Loading chart...</div>
       )}
+      </div>
 
       {/* Collapsible Stats - only show when toggled */}
       {stats && statsVisible && (
@@ -2111,6 +2321,7 @@ function ReactFlowWrapper() {
   
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true); // Panel open by default
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [selectedModel, setSelectedModel] = useState(localStorage.getItem('gemini_model') || 'gemini-2.0-flash');
   const [configStatus, setConfigStatus] = useState('idle'); // idle, testing, success, error
@@ -2154,7 +2365,7 @@ function ReactFlowWrapper() {
     if (storedApiKey && storedApiKey.trim()) {
       setIsConfigLocked(true);
       setConfigStatus('success');
-      setConfigMessage('✅ Configuration loaded from previous session.');
+      setConfigMessage('Configuration loaded from previous session.');
     }
   }, []);
 
@@ -2183,7 +2394,7 @@ function ReactFlowWrapper() {
         updateTokenUsage={updateTokenUsage}
       />
     )
-  }), [apiKey, selectedModel, setShowSettings, updateTokenUsage]);
+  }), [selectedModel, setShowSettings, updateTokenUsage]);
 
   // Viewport transform: [translateX, translateY, zoom]
   const transform = useStore(s => s.transform);
@@ -2275,6 +2486,14 @@ function ReactFlowWrapper() {
                 ? { ...node, data: { ...node.data, text: newText, isNew: false } }
                 : node
             ));
+          },
+          onSelect: (nodeId) => {
+            // Handle textbox selection (similar to chart selection)
+            setSelectedCharts(prev => 
+              prev.includes(nodeId) 
+                ? prev.filter(id => id !== nodeId)  // Deselect if already selected
+                : [...prev, nodeId]  // Add to selection
+            );
           }
         },
         draggable: true,
@@ -2452,9 +2671,30 @@ function ReactFlowWrapper() {
           dimensions: finalDimensions,
           measures: finalMeasures,
           agg: fused.agg || 'sum',
+          datasetId: fused.dataset_id, // Store dataset ID for aggregation updates
           table: fused.table || [] // Add table data for chart type switching
         } 
       }));
+      
+      // Create edges connecting parent charts to fused result
+      setEdges(currentEdges => currentEdges.concat([
+        {
+          id: `${c1}-${newId}`,
+          source: c1,
+          target: newId,
+          type: 'default',
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+          markerEnd: { type: 'arrowclosed', color: '#94a3b8' }
+        },
+        {
+          id: `${c2}-${newId}`,
+          source: c2,
+          target: newId,
+          type: 'default', 
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+          markerEnd: { type: 'arrowclosed', color: '#94a3b8' }
+        }
+      ]));
       
       // Clear selections after successful merge
       setSelectedCharts([]);
@@ -2477,8 +2717,32 @@ function ReactFlowWrapper() {
       const dims = node.data.dimensions || [];
       const meas = node.data.measures || [];
       
-      if (!datasetId || dims.length === 0 || meas.length === 0) {
-        console.warn('Missing required data for aggregation update:', { nodeId, dims, meas, datasetId });
+      // Use the global datasetId as primary source, but for fused charts we need to ensure we have it
+      const currentDatasetId = datasetId || node.data.datasetId;
+      
+      console.log('Aggregation update debug:', { 
+        nodeId, 
+        newAgg, 
+        dims, 
+        meas, 
+        datasetId, 
+        nodeDatasetId: node.data.datasetId,
+        currentDatasetId,
+        isFused: node.data.isFused,
+        strategy: node.data.strategy,
+        nodeData: node.data
+      });
+      
+      // Special handling for fused charts
+      if (node.data.isFused) {
+        console.warn('Aggregation changes not supported for fused charts yet');
+        alert('Aggregation changes are not yet supported for fused charts. This feature is coming soon!');
+        return currentNodes;
+      }
+      
+      if (!currentDatasetId || dims.length === 0 || meas.length === 0) {
+        console.warn('Missing required data for aggregation update:', { nodeId, dims, meas, currentDatasetId });
+        alert(`Cannot update aggregation: Missing required data. Dataset: ${currentDatasetId ? 'OK' : 'MISSING'}, Dimensions: ${dims.length}, Measures: ${meas.length}`);
         return currentNodes;
       }
 
@@ -2490,12 +2754,32 @@ function ReactFlowWrapper() {
       // Make the API call asynchronously
       (async () => {
         try {
-          const body = { dataset_id: datasetId, dimensions: dims, measures: meas, agg: newAgg };
-          const res = await fetch(`${API}/charts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-          if (!res.ok) throw new Error(await res.text());
+          const body = { 
+            dataset_id: currentDatasetId, 
+            dimensions: dims, 
+            measures: meas, 
+            agg: newAgg 
+          };
+          
+          console.log('Making aggregation API call:', { url: `${API}/charts`, body });
+          
+          const res = await fetch(`${API}/charts`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(body) 
+          });
+          
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error('API call failed:', res.status, errorText);
+            throw new Error(`HTTP ${res.status}: ${errorText}`);
+          }
+          
           const chart = await res.json();
           const figure = figureFromPayload(chart);
           const title = chart.title || `${(newAgg || 'sum').toUpperCase()} ${meas.join(', ')} by ${dims.join(', ')}`;
+          
+          console.log('Aggregation API call successful, updating node:', nodeId);
           
           setNodes(nds => nds.map(n => n.id === nodeId ? ({
             ...n,
@@ -2541,8 +2825,10 @@ function ReactFlowWrapper() {
       layout: sanitizeLayout(layout)
     });
     const rows = payload.table || [];
-    const dims = payload.dimensions?.length || 0;
-    const measures = payload.measures?.length || 0;
+    
+    // Get actual dimension and measure arrays for chart type checking
+    const dims = payload.dimensions || [];
+    const measures = payload.measures || [];
     
     // Strategy A: same-dimension-different-measures => grouped bar or dual-axis
     if (payload.strategy?.type === 'same-dimension-different-measures') {
@@ -2553,8 +2839,6 @@ function ReactFlowWrapper() {
           return chartTypeConfig.createFigure(rows, payload);
         }
       }
-      
-      const dims = payload.dimensions;
       const xKey = dims[0];
       const measureKeys = payload.measures.filter(m => m !== xKey);
       const xValues = [...new Set(rows.map(r => r[xKey]))];
@@ -2607,7 +2891,7 @@ function ReactFlowWrapper() {
                 side: 'right',
                 overlaying: 'y'
               },
-              margin: { t: 20, b: 120, l: 80, r: 80 }, // Reduced top margin, increased bottom for legend
+              margin: { t: 20, b: 160, l: 80, r: 80 }, // Increased bottom margin even more for legend
               plot_bgcolor: '#fafafa',
               paper_bgcolor: 'white',
               showlegend: true,
@@ -2615,12 +2899,15 @@ function ReactFlowWrapper() {
                 orientation: 'h',
                 x: 0.5,
                 xanchor: 'center',
-                y: -0.25, // Moved further down
+                y: -0.35, // Moved even further down to avoid overlap
                 yanchor: 'top',
                 bgcolor: 'rgba(255,255,255,0.8)',
                 bordercolor: '#E2E8F0',
                 borderwidth: 1,
-                font: { size: 12 }
+                font: { size: 11 },
+                tracegroupgap: 5, // Add gap between legend groups
+                itemsizing: 'constant',
+                itemwidth: 30
               }
           });
         }
@@ -2629,7 +2916,7 @@ function ReactFlowWrapper() {
       // Fallback to grouped bar chart for single measure or similar scales
       const data = measureKeys.map(m => ({
         type: 'bar',
-        name: m,
+        name: truncateLabel(m), // Truncate long legend labels
         x: xValues,
         y: xValues.map(v => (rows.find(r => r[xKey] === v)?.[m]) ?? 0)
       }));
@@ -2650,7 +2937,7 @@ function ReactFlowWrapper() {
             }
           },
           barmode: 'group', 
-          margin: { t: 20, b: measureKeys.length > 1 ? 100 : 80, l: 80, r: 30 }, // Reduced top margin, more bottom space for legend
+          margin: { t: 20, b: measureKeys.length > 1 ? 140 : 80, l: 80, r: 30 }, // Keep normal right margin
           plot_bgcolor: '#fafafa',
           paper_bgcolor: 'white',
           showlegend: measureKeys.length > 1,
@@ -2658,12 +2945,27 @@ function ReactFlowWrapper() {
             orientation: 'h',
             x: 0.5,
             xanchor: 'center',
-            y: -0.2,
+            y: -0.3, // Moved further down to avoid overlap
             yanchor: 'top',
             bgcolor: 'rgba(255,255,255,0.8)',
             bordercolor: '#E2E8F0',
             borderwidth: 1,
-            font: { size: 12 }
+            font: { size: 11 },
+            tracegroupgap: 5, // Add gap between legend groups
+            itemsizing: 'constant',
+            itemwidth: 30,
+            // Add responsive behavior for many legend items
+            ...(measureKeys.length > 8 ? {
+              orientation: 'v', // Switch to vertical for many items
+              x: 1.05, // Closer to chart to avoid excessive gap
+              xanchor: 'left',
+              y: 0.5,
+              yanchor: 'middle',
+              itemwidth: 30, // Reduced item width
+              font: { size: 10 }, // Smaller font
+              borderwidth: 0, // Remove border to save space
+              tracegroupgap: 2 // Reduced gap between items
+            } : {})
           } : undefined
       });
     }
@@ -2879,6 +3181,7 @@ function ReactFlowWrapper() {
             agg: chart.agg || 'sum',
             dimensions: [selectedDimension],
             measures: [selectedMeasure],
+            datasetId: datasetId, // Store dataset ID for aggregation updates
             table: chart.table || [] // Add table data for chart type switching
           } 
         }));
@@ -2943,6 +3246,7 @@ function ReactFlowWrapper() {
             agg: 'sum', 
             dimensions: [], 
             measures: [selectedMeasure], 
+            datasetId: datasetId, // Store dataset ID for aggregation updates
             onAggChange: updateChartAgg 
           } 
         }));
@@ -3006,6 +3310,7 @@ function ReactFlowWrapper() {
             agg: 'count', 
             dimensions: [selectedDimension], 
             measures: ['count'], 
+            datasetId: datasetId, // Store dataset ID for aggregation updates
             onAggChange: updateChartAgg 
           } 
         }));
@@ -3051,8 +3356,228 @@ function ReactFlowWrapper() {
     return firstLine;
   };
 
-  // Settings panel component
-  const SettingsPanel = () => {
+  // Memoized API key change handler to prevent unnecessary re-renders
+  const handleApiKeyChange = useCallback((e) => {
+    setApiKey(e.target.value);
+  }, []);
+
+  // Simple Custom Layout Algorithm (No ELK.js dependency)
+  const applyHierarchicalLayout = useCallback(() => {
+    if (nodes.length === 0) return;
+
+    try {
+      // Calculate node dimensions based on type - using ACTUAL chart dimensions
+      const getNodeDimensions = (node) => {
+        switch (node.type) {
+          case 'chart':
+            // Use the SAME logic as ChartNode component for accurate dimensions
+            const { strategy, title, dimensions = [], measures = [], isFused } = node.data;
+            const isDualAxis = strategy === 'same-dimension-different-measures' && title?.includes('(Dual Scale)');
+            const isHeatmap = strategy === 'same-dimension-different-dimensions-heatmap';
+            const isMultiVariable = dimensions.length >= 1 && measures.length >= 1;
+            const isThreeVariable = (dimensions.length >= 2 && measures.length >= 1) || (dimensions.length >= 1 && measures.length >= 2);
+            const isFusedWithLegend = isFused && (
+              (strategy === 'same-dimension-different-measures') || 
+              (strategy === 'same-measure-different-dimensions-stacked')
+            );
+            
+            // Check if this fused chart would use vertical legend
+            const hasVerticalLegend = isFused && (
+              (strategy === 'same-dimension-different-measures' && measures.length > 8) ||
+              (strategy === 'same-measure-different-dimensions-stacked' && dimensions.length > 10)
+            );
+            
+            // Exact same logic as ChartNode component
+            const chartWidth = (isDualAxis || isHeatmap) ? 1000 : 
+              isMultiVariable ? (hasVerticalLegend ? 1000 : 760) : 380;
+            const chartHeight = (isDualAxis || isHeatmap || isThreeVariable) ? (isFusedWithLegend ? 500 : 400) : 300;
+            
+            return {
+              width: chartWidth,
+              height: chartHeight + 100 // Add padding for title, controls, etc.
+            };
+          case 'table':
+            // TableNode uses max-w-2xl (672px) + table height 384px + headers/padding
+            return { width: 672, height: 450 };
+          case 'expression':
+            // ExpressionNode uses max-w-md (448px) + variable height based on content
+            return { width: 448, height: 250 };
+          case 'textbox':
+            // TextBoxNode sticky note with dynamic height (estimate for layout)
+            return { width: 220, height: 300 };
+          case 'arrow':
+            return { width: 50, height: 50 };
+          default:
+            return { width: 300, height: 200 };
+        }
+      };
+
+      // Find connected components (groups of interconnected nodes)
+      const findConnectedComponents = () => {
+        const visited = new Set();
+        const components = [];
+        
+        // Build adjacency list
+        const adjacencyList = new Map();
+        nodes.forEach(node => adjacencyList.set(node.id, []));
+        edges.forEach(edge => {
+          if (adjacencyList.has(edge.source)) adjacencyList.get(edge.source).push(edge.target);
+          if (adjacencyList.has(edge.target)) adjacencyList.get(edge.target).push(edge.source);
+        });
+        
+        // DFS to find connected components
+        const dfs = (nodeId, component) => {
+          if (visited.has(nodeId)) return;
+          visited.add(nodeId);
+          
+          const node = nodes.find(n => n.id === nodeId);
+          if (node) component.push(node);
+          
+          const neighbors = adjacencyList.get(nodeId) || [];
+          neighbors.forEach(neighborId => dfs(neighborId, component));
+        };
+        
+        // Find all connected components
+        nodes.forEach(node => {
+          if (!visited.has(node.id)) {
+            const component = [];
+            dfs(node.id, component);
+            components.push(component);
+          }
+        });
+        
+        return components;
+      };
+      
+      const connectedComponents = findConnectedComponents();
+      
+      // Separate single nodes from connected groups
+      const individualNodes = connectedComponents.filter(component => component.length === 1).flat();
+      const connectedGroups = connectedComponents.filter(component => component.length > 1);
+
+      // Debug: Log detailed component information
+      console.log('🔍 DEBUG: Connected Components Analysis:');
+      console.log('Total nodes:', nodes.length);
+      console.log('Total edges:', edges.length);
+      console.log('Edges details:', edges.map(e => `${e.source} → ${e.target}`));
+      console.log('All node IDs:', nodes.map(n => n.id));
+      console.log('All components:', connectedComponents.map((comp, i) => ({
+        groupId: i,
+        nodeIds: comp.map(n => n.id),
+        nodeCount: comp.length
+      })));
+      console.log('Connected groups (>1 node):', connectedGroups.length);
+      console.log('Individual nodes (<2 nodes):', individualNodes.length);
+      
+      console.log('📊 Organizing layout:', {
+        total: nodes.length,
+        connectedGroups: connectedGroups.length,
+        groupSizes: connectedGroups.map(g => g.length),
+        individual: individualNodes.length
+      });
+
+      let yOffset = 50; // Starting Y position
+      const nodeSpacing = 100; // Space between nodes in the same row
+      const rowSpacing = 550; // Space between rows
+      let newNodes = [];
+
+      // Rows 1-N: Each connected group gets its own row
+      connectedGroups.forEach((group, groupIndex) => {
+        console.log(`📊 Arranging connected group ${groupIndex + 1} with ${group.length} nodes at Y=${yOffset}`);
+        console.log(`   Group nodes: [${group.map(n => n.id).join(', ')}]`);
+        
+        // Organize nodes in this group by their relationships
+        const organizeGroupNodes = (groupNodes) => {
+          if (groupNodes.length <= 1) return groupNodes;
+          
+          const arrangedNodes = [];
+          const processedNodes = new Set();
+          
+          // Find root nodes in this group (not targets of any edge within the group)
+          const groupNodeIds = new Set(groupNodes.map(n => n.id));
+          const groupEdges = edges.filter(edge => 
+            groupNodeIds.has(edge.source) && groupNodeIds.has(edge.target)
+          );
+          const targetNodes = new Set(groupEdges.map(edge => edge.target));
+          const rootNodes = groupNodes.filter(node => !targetNodes.has(node.id));
+          
+          console.log(`   Root nodes in group: [${rootNodes.map(n => n.id).join(', ')}]`);
+          console.log(`   Group edges: [${groupEdges.map(e => `${e.source}→${e.target}`).join(', ')}]`);
+          
+          // Process chains starting from root nodes
+          const processChain = (nodeId) => {
+            const node = groupNodes.find(n => n.id === nodeId);
+            if (!node || processedNodes.has(nodeId)) return;
+            
+            processedNodes.add(nodeId);
+            arrangedNodes.push(node);
+            
+            // Find children in this group
+            const childEdges = groupEdges.filter(edge => edge.source === nodeId);
+            childEdges.forEach(edge => processChain(edge.target));
+          };
+          
+          // Process all root nodes and their chains
+          rootNodes.forEach(rootNode => processChain(rootNode.id));
+          
+          // Add any remaining nodes in the group
+          groupNodes.forEach(node => {
+            if (!processedNodes.has(node.id)) {
+              arrangedNodes.push(node);
+            }
+          });
+          
+          console.log(`   Final arrangement: [${arrangedNodes.map(n => n.id).join(', ')}]`);
+          return arrangedNodes;
+        };
+        
+        const arrangedGroup = organizeGroupNodes(group);
+        
+        // Arrange this group horizontally
+        let xOffset = 80; // Left margin
+        arrangedGroup.forEach((node, nodeIndex) => {
+          const dimensions = getNodeDimensions(node);
+          console.log(`   Positioning node ${node.id} at (${xOffset}, ${yOffset})`);
+          newNodes.push({
+            ...node,
+            position: { x: xOffset, y: yOffset }
+          });
+          xOffset += dimensions.width + nodeSpacing;
+        });
+        
+        console.log(`   Moving to next row: Y ${yOffset} → ${yOffset + rowSpacing}`);
+        yOffset += rowSpacing; // Move to next row
+      });
+
+      // Final row: Individual nodes (standalone)
+      if (individualNodes.length > 0) {
+        console.log(`📊 Arranging ${individualNodes.length} individual nodes at Y=${yOffset}`);
+        console.log(`   Individual nodes: [${individualNodes.map(n => n.id).join(', ')}]`);
+        let xOffset = 80; // Left margin
+        individualNodes.forEach((node, nodeIndex) => {
+          const dimensions = getNodeDimensions(node);
+          console.log(`   Positioning individual node ${node.id} at (${xOffset}, ${yOffset})`);
+          newNodes.push({
+            ...node,
+            position: { x: xOffset, y: yOffset }
+          });
+          xOffset += dimensions.width + nodeSpacing;
+        });
+      }
+
+      // Update nodes with new positions
+      setNodes(newNodes);
+      
+      console.log('✅ Charts arranged successfully in organized rows');
+
+    } catch (error) {
+      console.error('❌ Error arranging charts:', error);
+      alert('Failed to arrange charts: ' + error.message);
+    }
+  }, [nodes, edges]);
+
+  // Settings panel component - memoized to prevent re-creation on every render
+  const SettingsPanel = React.memo(() => {
     const handleTestConfiguration = async () => {
       if (!apiKey.trim()) {
         setConfigStatus('error');
@@ -3079,7 +3604,7 @@ function ReactFlowWrapper() {
         
         if (result.success) {
           setConfigStatus('success');
-          setConfigMessage('✅ Configuration successful! LLM is ready to use.');
+          setConfigMessage('Configuration successful! LLM is ready to use.');
           localStorage.setItem('gemini_api_key', apiKey);
           localStorage.setItem('gemini_model', selectedModel);
           setIsConfigLocked(true); // Lock the configuration after success
@@ -3132,7 +3657,7 @@ function ReactFlowWrapper() {
                 type={showApiKey ? "text" : "password"}
                 placeholder="Enter your Gemini API key"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={handleApiKeyChange}
                 disabled={isConfigLocked}
                 className={`w-full pr-10 ${isConfigLocked ? 'bg-gray-50 text-gray-500' : ''}`}
               />
@@ -3233,12 +3758,26 @@ function ReactFlowWrapper() {
         </div>
       </div>
     );
-  };
+  });
 
   return (
     <div className="w-screen h-screen relative">
+      {/* Menu Toggle Button */}
+      <div className="absolute top-4 left-4 z-50">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsPanelOpen(!isPanelOpen)}
+          className="h-8 w-8 p-0 bg-white border border-gray-300 shadow-sm hover:bg-gray-50"
+          title={isPanelOpen ? "Hide Panel" : "Show Panel"}
+        >
+          <MenuIcon size={16} className="text-gray-600" />
+        </Button>
+      </div>
+
       {/* Floating Side Panel */}
-      <div className="fixed top-4 left-4 w-80 max-h-[calc(100vh-8rem)] bg-white border border-gray-300 rounded-2xl shadow-lg z-40 overflow-hidden">
+      {isPanelOpen && (
+        <div className="fixed top-14 left-4 w-80 max-h-[calc(100vh-10rem)] bg-white border border-gray-300 rounded-2xl shadow-lg z-40 overflow-hidden">
         <Card className="h-full border-0">
           <CardHeader className="pb-4">
             <div className="space-y-3">
@@ -3328,6 +3867,7 @@ function ReactFlowWrapper() {
             </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Main Canvas - Full Width */}
       <div className="w-full h-full absolute inset-0">
@@ -3381,6 +3921,7 @@ function ReactFlowWrapper() {
           selectedCharts={selectedCharts}
           onMergeCharts={mergeSelectedCharts}
           onClearSelection={() => setSelectedCharts([])}
+          onAutoLayout={applyHierarchicalLayout}
         />
       </div>
     </div>
