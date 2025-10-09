@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import ReactFlow, { Background, Controls, MiniMap, applyNodeChanges, applyEdgeChanges, ReactFlowProvider, useStore } from 'react-flow-renderer';
+import ReactFlow, { Background, Controls, MiniMap, applyNodeChanges, applyEdgeChanges, ReactFlowProvider, useStore, useReactFlow } from 'react-flow-renderer';
 import Plot from 'react-plotly.js';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -459,6 +459,15 @@ const truncateLabel = (label, maxLength = 12) => {
 
 // Universal layout sanitizer to ensure all layouts have proper legend configuration and modebar spacing
 const sanitizeLayout = (layout) => {
+  // Safety check for null/undefined layout
+  if (!layout || typeof layout !== 'object') {
+    return {
+      title: { text: 'Chart' },
+      margin: { t: 50, b: 60, l: 60, r: 30 },
+      showlegend: false
+    };
+  }
+  
   const currentMargin = layout.margin || {};
   return {
     ...layout,
@@ -1734,7 +1743,7 @@ function ChartTypeSelector({ dimensions = [], measures = [], currentType, onType
 }
 
 function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage }) {
-  const { title, figure, isFused, strategy, stats, agg, dimensions = [], measures = [], onAggChange, onShowTable, table = [], onChartHover } = data;
+  const { title, figure, isFused, strategy, stats, agg, dimensions = [], measures = [], onAggChange, onShowTable, table = [] } = data;
   const [menuOpen, setMenuOpen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const [aiExploreOpen, setAiExploreOpen] = useState(false);
@@ -1742,6 +1751,10 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [showTableView, setShowTableView] = useState(false);
+  const [insightSticky, setInsightSticky] = useState(null);
+  
+  // Use ref to prevent state reset during React Flow re-renders
+  const aiExploreRef = useRef(false);
   
   // Chart type switching state
   const defaultChartType = getDefaultChartType(dimensions.length, measures.length);
@@ -1779,6 +1792,80 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
       }
     }
   }, [figure, chartType, hasUserChangedType, table, dimensions, measures, strategy]);
+
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Comprehensive Plotly cleanup when component unmounts
+      try {
+        // Find all Plotly divs that might be related to this chart
+        const plotlyDivs = document.querySelectorAll('.js-plotly-plot');
+        plotlyDivs.forEach(plotlyDiv => {
+          if (plotlyDiv && plotlyDiv._fullLayout) {
+            // Clean up Plotly internal references
+            if (plotlyDiv._hoverlayer) {
+              plotlyDiv._hoverlayer = null;
+            }
+            if (plotlyDiv._fullLayout) {
+              plotlyDiv._fullLayout = null;
+            }
+            if (plotlyDiv._fullData) {
+              plotlyDiv._fullData = null;
+            }
+            if (plotlyDiv._context) {
+              plotlyDiv._context = null;
+            }
+            // Remove event listeners
+            if (plotlyDiv.removeAllListeners) {
+              plotlyDiv.removeAllListeners();
+            }
+          }
+        });
+        
+        // Also try to find by data-id attribute
+        const specificDiv = document.querySelector(`[data-id="${id}"]`);
+        if (specificDiv) {
+          if (specificDiv._hoverlayer) {
+            specificDiv._hoverlayer = null;
+          }
+          if (specificDiv._fullLayout) {
+            specificDiv._fullLayout = null;
+          }
+        }
+      } catch (error) {
+        console.warn('Plotly cleanup warning:', error);
+      }
+    };
+  }, [id]);
+
+  // Restore AI explore state if it gets reset by React Flow
+  useEffect(() => {
+    if (aiExploreRef.current && !aiExploreOpen) {
+      setAiExploreOpen(true);
+    }
+  }, [aiExploreOpen]);
+
+  // Additional cleanup effect to handle node deletion
+  useEffect(() => {
+    return () => {
+      // This runs when the component is about to be unmounted
+      // Clean up any remaining Plotly references
+      try {
+        // Use a timeout to ensure cleanup happens after React Flow processes the deletion
+        setTimeout(() => {
+          const plotlyDivs = document.querySelectorAll('.js-plotly-plot');
+          plotlyDivs.forEach(plotlyDiv => {
+            if (plotlyDiv && plotlyDiv._hoverlayer) {
+              // Set hoverlayer to null to prevent errors
+              plotlyDiv._hoverlayer = null;
+            }
+          });
+        }, 100);
+      } catch (error) {
+        // Silently handle any cleanup errors
+      }
+    };
+  }, []);
   
   const handleSelect = (e) => {
     e.stopPropagation();
@@ -1797,12 +1884,13 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
                          target.closest('.main-svg') || 
                          target.closest('.plotly') ||
                          target.closest('svg');
-    const isButton = target.closest('button') || target.closest('[role="button"]');
-    const isDropdown = target.closest('[role="menu"]') || target.closest('[role="menuitem"]');
+    const isButton = target.closest('button') || target.closest('[role="button"]') || target.closest('[data-radix-collection-item]');
+    const isDropdown = target.closest('[role="menu"]') || target.closest('[role="menuitem"]') || target.closest('[data-radix-popper-content-wrapper]');
+    const isInteractiveElement = target.closest('input') || target.closest('select') || target.closest('textarea');
     
     // Only allow selection if clicking directly on the empty container
-    // NOT on plot elements (preserve Plotly interactions like lasso select, zoom, etc.)
-    if (target === currentTarget && !isButton && !isDropdown && !isPlotElement) {
+    // NOT on plot elements, buttons, dropdowns, or other interactive elements
+    if (target === currentTarget && !isButton && !isDropdown && !isPlotElement && !isInteractiveElement) {
       handleSelect(e);
     }
   };
@@ -1916,6 +2004,57 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
       setAiLoading(false);
     }
   };
+
+  const handleGenerateInsights = async () => {
+    if (aiLoading) return;
+    
+    // Check if API key is configured
+    const currentApiKey = apiKey || localStorage.getItem('gemini_api_key');
+    const currentModel = selectedModel || localStorage.getItem('gemini_model') || 'gemini-2.0-flash';
+    
+    if (!currentApiKey.trim()) {
+      alert('⚠️ Please configure your Gemini API key in Settings first.');
+      setShowSettings(true);
+      return;
+    }
+    
+    setAiLoading(true);
+    try {
+      const response = await fetch(`${API}/chart-insights`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chart_id: id,
+          api_key: currentApiKey,
+          model: currentModel
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+      
+      const result = await response.json();
+      
+      // Track token usage
+      if (result.token_usage) {
+        updateTokenUsage(result.token_usage);
+      }
+      
+      // Show sticky note with insights
+      setInsightSticky({
+        insight: result.insight,
+        statistics: result.statistics
+      });
+      
+    } catch (error) {
+      console.error('Generate insights failed:', error);
+      alert(`Failed to generate insights: ${error.message}. ${error.message.includes('401') || error.message.includes('403') ? 'Please check your API key in Settings.' : ''}`);
+    } finally {
+      setAiLoading(false);
+    }
+  };
   
   // Determine chart size based on chart type
   const isDualAxis = strategy === 'same-dimension-different-measures' && title?.includes('(Dual Scale)');
@@ -1946,9 +2085,7 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
           ? 'border-blue-500 bg-blue-50 shadow-lg' 
           : 'border-transparent hover:border-gray-300'
       } ${isFused ? 'ring-2 ring-green-200' : ''}`}
-      style={{ width: chartWidth }}
-      onMouseEnter={() => onChartHover?.(true)}
-      onMouseLeave={() => onChartHover?.(false)}
+      style={{ width: chartWidth, pointerEvents: 'auto' }}
     >
       {/* Clean Header with Title and Menu */}
       <div className="flex items-center justify-between mb-2">
@@ -1980,17 +2117,20 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
           ) : null;
         })()}
         
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2" style={{ zIndex: 1000, position: 'relative' }}>
           {/* AI Explore Button */}
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              setAiExploreOpen(!aiExploreOpen);
+              const newState = !aiExploreOpen;
+              setAiExploreOpen(newState);
+              aiExploreRef.current = newState;
             }}
             variant={aiExploreOpen ? "default" : "ghost"}
             size="icon"
             title={aiExploreOpen ? "Close AI Explorer" : "Explore with AI"}
             className={`p-1 ${aiExploreOpen ? "bg-blue-600 text-white hover:bg-blue-700" : "hover:bg-gray-100"}`}
+            style={{ zIndex: 1000, position: 'relative' }}
           >
             <Wand size={16} />
           </Button>
@@ -2003,6 +2143,7 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
                 e.stopPropagation();
                 setMenuOpen(!menuOpen);
               }}
+              style={{ zIndex: 1000, position: 'relative' }}
             >
               <Menu size={16} className="text-gray-600" />
             </DropdownMenuTrigger>
@@ -2064,6 +2205,7 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
                   ))}
                 </>
               )}
+              
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -2071,18 +2213,42 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
       
       {/* Chart Plot - Now with more space! */}
       <div 
-        className="chart-plot-container cursor-pointer"
+        className="chart-plot-container"
         onClick={handleChartAreaClick}
       >
       {currentFigure && currentFigure.data && currentFigure.layout ? (
         <Plot 
+          key={`${id}-${chartType}-${JSON.stringify(currentFigure.data?.length || 0)}`}
           data={currentFigure.data || []} 
           layout={sanitizeLayout(currentFigure.layout)} 
           style={{ width: '100%', height: chartHeight }} 
           useResizeHandler 
+          onError={(err) => {
+            console.warn('Plotly error:', err);
+          }}
+          onInitialized={(figure, graphDiv) => {
+            // Ensure proper initialization
+            if (graphDiv && graphDiv._hoverlayer) {
+              graphDiv._hoverlayer.style.pointerEvents = 'auto';
+            }
+          }}
+          onPurge={(figure, graphDiv) => {
+            // Cleanup when Plotly is purged/destroyed
+            if (graphDiv) {
+              if (graphDiv._hoverlayer) {
+                graphDiv._hoverlayer = null;
+              }
+              if (graphDiv._fullLayout) {
+                graphDiv._fullLayout = null;
+              }
+              if (graphDiv._fullData) {
+                graphDiv._fullData = null;
+              }
+            }
+          }}
           config={{
             displayModeBar: true,
-            displaylogo: false, // Hide Plotly logo
+            displaylogo: false,
             modeBarButtons: [
               [
                 'zoomIn2d',
@@ -2107,7 +2273,16 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
               height: 500,
               width: 700,
               scale: 1
-            }
+            },
+            // Add these to prevent hover layer issues
+            staticPlot: false,
+            responsive: true,
+            doubleClick: 'reset+autosize',
+            showTips: true,
+            showLink: false,
+            linkText: '',
+            sendData: false,
+            showSources: false
           }}
         />
       ) : (
@@ -2141,9 +2316,22 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
       {aiExploreOpen && (
         <div className="mt-3 border-t border-gray-200 pt-3">
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-              <Wand size={16} className="text-blue-600" />
-              Explore with AI
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <Wand size={16} className="text-blue-600" />
+                Explore with AI
+              </div>
+              <Button
+                onClick={handleGenerateInsights}
+                disabled={aiLoading}
+                variant="ghost"
+                size="sm"
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 h-auto"
+                title="Generate automatic insights for this chart"
+              >
+                <Wand className="w-4 h-4 mr-1" />
+                Insights
+              </Button>
             </div>
             <div className="flex gap-2">
               <input
@@ -2296,7 +2484,125 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
           </div>
         </div>
       )}
+      
+      {/* Insight Sticky Note */}
+      {insightSticky && (
+        <div className="absolute top-0 right-0 transform translate-x-full ml-4 z-50">
+          <InsightStickyNote
+            insight={insightSticky.insight}
+            onClose={() => setInsightSticky(null)}
+          />
+        </div>
+      )}
     </div>
+  );
+}
+
+// Insight Sticky Note Component
+function InsightStickyNote({ 
+  insight, 
+  onClose, 
+  size = { width: 300, height: 200 }
+}) {
+  const [currentSize, setCurrentSize] = useState(size);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [currentPosition, setCurrentPosition] = useState({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = (e) => {
+    if (e.target.closest('.resize-handle')) return;
+    
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - currentPosition.x,
+      y: e.clientY - currentPosition.y
+    });
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      setCurrentPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setIsResizing(false);
+  };
+
+  const handleResize = (e) => {
+    if (!isResizing) return;
+    
+    const newWidth = Math.max(200, e.clientX - currentPosition.x);
+    const newHeight = Math.max(100, e.clientY - currentPosition.y);
+    
+    setCurrentSize({
+      width: newWidth,
+      height: newHeight
+    });
+  };
+
+  // Add global mouse event listeners
+  React.useEffect(() => {
+    if (isDragging || isResizing) {
+      document.addEventListener('mousemove', isDragging ? handleMouseMove : handleResize);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', isDragging ? handleMouseMove : handleResize);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, isResizing, dragStart, currentPosition]);
+
+  return (
+    <div 
+      className="relative bg-yellow-100 border-2 border-yellow-300 rounded-lg shadow-lg p-3 cursor-move"
+      style={{
+        width: currentSize.width,
+        height: currentSize.height,
+        minWidth: 200,
+        minHeight: 100
+      }}
+      onMouseDown={handleMouseDown}
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center mb-2">
+        <h4 className="font-semibold text-yellow-800 text-sm">📊 Chart Insights</h4>
+        <Button onClick={onClose} variant="ghost" size="sm" className="h-6 w-6 p-0">
+          <X className="w-3 h-3" />
+        </Button>
+      </div>
+      
+      {/* Content */}
+      <div className="text-xs text-yellow-900 overflow-y-auto h-full pr-2">
+        {insight}
+      </div>
+      
+      {/* Resize handle */}
+      <div 
+        className="resize-handle absolute bottom-0 right-0 w-3 h-3 bg-yellow-400 cursor-se-resize rounded-tl-lg"
+        onMouseDown={(e) => {
+          setIsResizing(true);
+          e.stopPropagation();
+        }}
+      />
+    </div>
+  );
+}
+
+// Component to handle custom wheel events with proper React Flow hooks
+function CustomReactFlow({ children, ...props }) {
+  return (
+    <ReactFlow
+      {...props}
+    >
+      {children}
+    </ReactFlow>
   );
 }
 
@@ -2316,8 +2622,6 @@ function ReactFlowWrapper() {
   const [arrowStart, setArrowStart] = useState(null);
   const [nodeIdCounter, setNodeIdCounter] = useState(1000);
 
-  // State to control zoom behavior
-  const [isHoveringChart, setIsHoveringChart] = useState(false);
   
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
@@ -2335,10 +2639,7 @@ function ReactFlowWrapper() {
     estimatedCost: 0
   });
   
-  // Handler to control chart hover state
-  const handleChartHover = useCallback((isHovering) => {
-    setIsHoveringChart(isHovering);
-  }, []);
+  
 
   // Helper function to calculate token costs (Gemini pricing)
   const updateTokenUsage = useCallback((newUsage) => {
@@ -2358,6 +2659,7 @@ function ReactFlowWrapper() {
     }));
   }, []);
 
+
   // Initialize locked state if configuration is already stored
   useEffect(() => {
     const storedApiKey = localStorage.getItem('gemini_api_key');
@@ -2373,6 +2675,7 @@ function ReactFlowWrapper() {
   const nodeTypes = useMemo(() => ({
     chart: (props) => (
       <ChartNode 
+        key={props.id}
         {...props} 
         selected={props.data.selected}
         onSelect={props.data.onSelect}
@@ -2394,7 +2697,7 @@ function ReactFlowWrapper() {
         updateTokenUsage={updateTokenUsage}
       />
     )
-  }), [selectedModel, setShowSettings, updateTokenUsage]);
+  }), [apiKey, selectedModel, setShowSettings, updateTokenUsage]);
 
   // Viewport transform: [translateX, translateY, zoom]
   const transform = useStore(s => s.transform);
@@ -2430,7 +2733,40 @@ function ReactFlowWrapper() {
   }, [tx, ty, zoom]);
 
   const onNodesChange = useCallback(
-    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
+    (changes) => {
+      // Filter out selection changes that might interfere with interactive elements
+      const filteredChanges = changes.filter(change => {
+        // Allow all changes except selection changes that might be caused by button clicks
+        if (change.type === 'select') {
+          // Check if this selection change is legitimate (not from button clicks)
+          return true; // For now, allow all selection changes
+        }
+        return true;
+      });
+      
+      // Check for node deletions and clean up Plotly instances
+      const deletionChanges = changes.filter(change => change.type === 'remove');
+      if (deletionChanges.length > 0) {
+        // Clean up Plotly instances for deleted nodes
+        setTimeout(() => {
+          try {
+            const plotlyDivs = document.querySelectorAll('.js-plotly-plot');
+            plotlyDivs.forEach(plotlyDiv => {
+              if (plotlyDiv && plotlyDiv._hoverlayer) {
+                plotlyDiv._hoverlayer = null;
+              }
+              if (plotlyDiv && plotlyDiv._fullLayout) {
+                plotlyDiv._fullLayout = null;
+              }
+            });
+          } catch (error) {
+            console.warn('Plotly cleanup during deletion:', error);
+          }
+        }, 50);
+      }
+      
+      setNodes((nds) => applyNodeChanges(filteredChanges, nds));
+    },
     []
   );
   
@@ -2812,11 +3148,9 @@ function ReactFlowWrapper() {
       data: {
         ...node.data,
         selected: selectedCharts.includes(node.id),
-        // Add hover handler for chart nodes
-        onChartHover: node.type === 'chart' ? handleChartHover : undefined
       }
     }));
-  }, [nodes, selectedCharts, handleChartHover]);
+  }, [nodes, selectedCharts]);
 
   function figureFromPayload(payload, chartType = null) {
     // Internal helper to ensure all figures have sanitized layouts
@@ -3871,23 +4205,47 @@ function ReactFlowWrapper() {
 
       {/* Main Canvas - Full Width */}
       <div className="w-full h-full absolute inset-0">
-        <ReactFlow
+        <CustomReactFlow
           nodes={nodesWithSelection}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onPaneClick={onPaneClick}
+          onNodeClick={(event, node) => {
+            // Prevent React Flow from handling node clicks when clicking on interactive elements
+            const target = event.target;
+            const isInteractiveElement = target.closest('button') || 
+                                       target.closest('[role="button"]') || 
+                                       target.closest('[role="menu"]') || 
+                                       target.closest('[role="menuitem"]') ||
+                                       target.closest('input') ||
+                                       target.closest('select') ||
+                                       target.closest('textarea') ||
+                                       target.closest('.tiptap') ||
+                                       target.closest('[data-radix-collection-item]');
+            
+            if (isInteractiveElement) {
+              // Don't let React Flow handle this click
+              event.stopPropagation();
+              return;
+            }
+            
+            // Only handle clicks on the node background
+            console.log('Node background clicked:', node.id);
+          }}
           fitView
           style={{ cursor: activeTool === 'select' ? 'default' : 'crosshair' }}
-          zoomOnScroll={!isHoveringChart}
-          zoomOnPinch={!isHoveringChart}
-          preventScrolling={isHoveringChart}
+          zoomOnScroll={false}
+          zoomOnPinch={true}
+          panOnScroll={true}
+          panOnScrollMode="free"
+          preventScrolling={false}
         >
           <MiniMap />
           <Controls style={{ position: 'absolute', bottom: '10px', right: '230px', left: 'auto' }} />
           <Background gap={16} />
-        </ReactFlow>
+        </CustomReactFlow>
         
         {/* Arrow preview line when creating arrow */}
         {activeTool === 'arrow' && arrowStart && (
@@ -3897,7 +4255,7 @@ function ReactFlowWrapper() {
         )}
         
         {/* Settings Button and Panel */}
-        <div className="absolute top-4 right-4 z-20">
+        <div className="absolute top-4 right-4 z-20 flex gap-2">
           <Button
             variant="ghost"
             size="sm"

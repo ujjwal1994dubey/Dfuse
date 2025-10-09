@@ -902,4 +902,63 @@ def list_models( api_key: str) -> List[Dict[str, str]]:
             {"label": "Gemini 1.5 Flash", "value": "gemini-1.5-flash"},
             {"label": "Gemini 2.5 Flash", "value": "gemini-2.5-flash"}
             ]
+
+class ChartInsightRequest(BaseModel):
+    chart_id: str
+    api_key: str
+    model: str = "gemini-2.0-flash"
+
+@app.post("/chart-insights")
+async def generate_chart_insights(request: ChartInsightRequest):
+    """Generate basic statistical insights for a chart"""
+    if request.chart_id not in CHARTS:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    
+    chart = CHARTS[request.chart_id]
+    dataset = DATASETS.get(chart["dataset_id"])
+    
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    # Create statistical summary prompt
+    dimensions = chart.get("dimensions", [])
+    measures = chart.get("measures", [])
+    table_data = chart.get("table", [])
+    
+    # Calculate basic statistics
+    stats = {}
+    for measure in measures:
+        values = [row.get(measure, 0) for row in table_data if isinstance(row.get(measure), (int, float))]
+        if values:
+            stats[measure] = {
+                "min": min(values),
+                "max": max(values),
+                "mean": sum(values) / len(values),
+                "total": sum(values)
+            }
+    
+    # Generate insight using Gemini
+    formulator = GeminiDataFormulator(api_key=request.api_key, model=request.model)
+    
+    prompt = f"""Generate a brief statistical summary (2-3 sentences) for this chart.
+
+Chart Title: {chart.get('title', 'Untitled Chart')}
+Dimensions: {dimensions}
+Measures: {measures}
+Statistics: {json.dumps(stats, indent=2)}
+
+Top 5 data points:
+{json.dumps(table_data[:5], indent=2)}
+
+Provide only the insight text without any headers or formatting."""
+
+    response, token_usage = formulator.run_gemini_with_usage(prompt)
+    
+    return {
+        "success": True,
+        "insight": response.strip(),
+        "statistics": stats,
+        "token_usage": token_usage
+    }
+
            
