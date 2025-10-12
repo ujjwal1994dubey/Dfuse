@@ -82,7 +82,22 @@ class ConfigTestRequest(BaseModel):
 # -----------------------
 
 def _parse_expression(expression: str, dataset_id: str) -> Dict[str, Any]:
-    """Parse expression and extract field references like @Revenue.Sum"""
+    """
+    Parse Expression Helper
+    Parses mathematical expressions containing field references in @Field.Aggregation format.
+    Validates field names against dataset columns and checks expression syntax.
+    
+    Args:
+        expression: Mathematical expression string (e.g., "@Revenue.Sum - @Cost.Avg")
+        dataset_id: ID of the dataset to validate fields against
+    
+    Returns:
+        Dictionary containing field_refs, errors, available_measures, and valid flag
+    
+    Examples:
+        "@Revenue.Sum * 2" -> extracts Revenue field with Sum aggregation
+        "@Price.Avg + @Tax.Max" -> extracts Price (Avg) and Tax (Max)
+    """
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
     
@@ -136,7 +151,25 @@ def _parse_expression(expression: str, dataset_id: str) -> Dict[str, Any]:
     }
 
 def _evaluate_expression(expression: str, dataset_id: str, filters: Dict[str, Any] = None) -> Dict[str, Any]:
-    """Evaluate expression with actual data"""
+    """
+    Evaluate Expression Helper
+    Evaluates a parsed mathematical expression with actual aggregated values from the dataset.
+    Applies optional filters before aggregation.
+    
+    Args:
+        expression: Mathematical expression with @Field.Aggregation references
+        dataset_id: ID of the dataset to evaluate against
+        filters: Optional dictionary of dimension filters {dimension: [values]}
+    
+    Returns:
+        Dictionary with result, field_values, expression, evaluated_expression, filters_applied
+    
+    Process:
+        1. Apply filters to dataset
+        2. Calculate aggregated values for each field reference
+        3. Replace field references with actual values
+        4. Safely evaluate the mathematical expression
+    """
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
     
@@ -199,7 +232,24 @@ def _evaluate_expression(expression: str, dataset_id: str, filters: Dict[str, An
         raise HTTPException(status_code=400, detail=f"Failed to evaluate expression: {str(e)}")
 
 def _safe_eval(expr: str) -> float:
-    """Safely evaluate mathematical expressions"""
+    """
+    Safe Expression Evaluator
+    Safely evaluates mathematical expressions using Python's AST module.
+    Only allows basic arithmetic operations (no exec/eval vulnerabilities).
+    
+    Args:
+        expr: Mathematical expression string (e.g., "100 + 50 * 2")
+    
+    Returns:
+        float: Computed result
+    
+    Allowed Operations:
+        - Addition, Subtraction, Multiplication, Division
+        - Unary operations (negation, positive)
+        - Numbers and constants
+    
+    Security: Uses AST parsing to prevent code injection attacks
+    """
     # Define allowed operators
     operators = {
         ast.Add: operator.add,
@@ -232,7 +282,22 @@ def _safe_eval(expr: str) -> float:
         raise ValueError(f"Invalid expression: {str(e)}")
 
 def _categorize_columns(df: pd.DataFrame) -> Dict[str, List[str]]:
-    """Automatically categorize columns into dimensions and measures based on data types"""
+    """
+    Column Categorization Helper
+    Automatically categorizes DataFrame columns into dimensions (categorical) and measures (numeric).
+    Uses heuristics to distinguish between numeric dimensions (e.g., Year) and true measures.
+    
+    Args:
+        df: Pandas DataFrame to analyze
+    
+    Returns:
+        Dictionary with 'dimensions' and 'measures' lists
+    
+    Logic:
+        - Numeric columns with <10% unique values and <20 unique total -> dimension
+        - Other numeric columns -> measures
+        - Non-numeric columns -> dimensions
+    """
     dimensions = []
     measures = []
     
@@ -258,6 +323,25 @@ def _categorize_columns(df: pd.DataFrame) -> Dict[str, List[str]]:
     return {"dimensions": dimensions, "measures": measures}
 
 def _agg(df: pd.DataFrame, dimensions: List[str], measures: List[str], agg: str = "sum") -> pd.DataFrame:
+    """
+    Aggregation Helper
+    Performs data aggregation across specified dimensions and measures.
+    Supports sum, avg, min, max, and count aggregations.
+    
+    Args:
+        df: Source DataFrame
+        dimensions: List of columns to group by
+        measures: List of numeric columns to aggregate
+        agg: Aggregation method ('sum', 'avg', 'min', 'max', 'count')
+    
+    Returns:
+        Aggregated DataFrame
+    
+    Special Cases:
+        - count aggregation doesn't require measures
+        - Maps 'avg' to pandas 'mean'
+        - Handles both grouped and non-grouped aggregations
+    """
     # Map frontend aggregation names to pandas aggregation names
     agg_mapping = {
         "sum": "sum",
@@ -292,10 +376,24 @@ def _agg(df: pd.DataFrame, dimensions: List[str], measures: List[str], agg: str 
 
 
 def _same_dim_diff_measures(spec1, spec2):
+    """
+    Chart Fusion Pattern Detector: Same Dimension, Different Measures
+    Checks if two charts share the same dimensions but have different measures.
+    Used to determine if charts can be fused into a multi-measure visualization.
+    
+    Example: Both charts show data by "State" but one shows "Revenue", other shows "Population"
+    """
     return spec1["dimensions"] == spec2["dimensions"] and set(spec1["measures"]) != set(spec2["measures"]) and len(spec1["dimensions"]) > 0
 
 
 def _same_measure_diff_dims(spec1, spec2):
+    """
+    Chart Fusion Pattern Detector: Same Measure, Different Dimensions
+    Checks if two charts share exactly one common measure but have different dimensions.
+    Used to create comparison or stacked visualizations.
+    
+    Example: Both charts show "Revenue" but one groups by "Region", other by "Product"
+    """
     common_measures = set(spec1["measures"]).intersection(set(spec2["measures"]))
     return (len(common_measures) == 1) and (spec1["dimensions"] != spec2["dimensions"]) and (len(spec1["dimensions"]) > 0 or len(spec2["dimensions"]) > 0)
 
@@ -308,6 +406,18 @@ def _same_measure_diff_dims(spec1, spec2):
 
 @app.post("/upload")
 async def upload_csv(file: UploadFile = File(...)):
+    """
+    CSV Upload Endpoint
+    Uploads and processes a CSV file, stores it in memory with a unique ID.
+    Automatically categorizes columns into dimensions and measures.
+    
+    Returns:
+        - dataset_id: Unique identifier for the uploaded dataset
+        - columns: All column names (for backward compatibility)
+        - dimensions: Categorical columns
+        - measures: Numeric columns
+        - rows: Total row count
+    """
     content = await file.read()
     df = pd.read_csv(io.BytesIO(content))
     dataset_id = str(uuid.uuid4())
@@ -326,7 +436,21 @@ async def upload_csv(file: UploadFile = File(...)):
 
 
 def _generate_chart_title(dimensions: List[str], measures: List[str], agg: str = "sum") -> str:
-    """Generate a descriptive chart title based on dimensions and measures"""
+    """
+    Chart Title Generator
+    Automatically generates human-readable chart titles based on chart configuration.
+    Creates natural language descriptions of what the chart displays.
+    
+    Args:
+        dimensions: List of dimension columns
+        measures: List of measure columns
+        agg: Aggregation method
+    
+    Examples:
+        dimensions=["State"], measures=["Revenue"] -> "Revenue by State"
+        dimensions=["State", "Year"], measures=["Revenue", "Cost"] -> "Revenue and Cost by State and Year"
+        dimensions=[], measures=["Revenue"] -> "Total Revenue"
+    """
     if not dimensions and not measures:
         return "Empty Chart"
     
@@ -353,6 +477,23 @@ def _generate_chart_title(dimensions: List[str], measures: List[str], agg: str =
 
 @app.post("/charts")
 async def create_chart(spec: ChartCreate):
+    """
+    Chart Creation Endpoint
+    Creates a new chart by aggregating data from a dataset.
+    Stores chart metadata and aggregated table data in memory.
+    
+    Args:
+        spec: ChartCreate model with dataset_id, dimensions, measures, agg, title
+    
+    Returns:
+        Chart object with chart_id, metadata, and aggregated table data
+    
+    Process:
+        1. Validates dataset exists
+        2. Aggregates data using _agg helper
+        3. Generates auto-title if not provided
+        4. Stores chart in CHARTS registry
+    """
     if spec.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
     df = DATASETS[spec.dataset_id]
@@ -376,6 +517,11 @@ async def create_chart(spec: ChartCreate):
 
 @app.get("/charts/{chart_id}")
 async def get_chart(chart_id: str):
+    """
+    Get Chart Endpoint
+    Retrieves a previously created chart by its ID.
+    Returns complete chart metadata including aggregated data.
+    """
     if chart_id not in CHARTS:
         raise HTTPException(status_code=404, detail="Chart not found")
     return CHARTS[chart_id]
@@ -383,7 +529,17 @@ async def get_chart(chart_id: str):
 
 @app.post("/chart-table")
 async def get_chart_table(req: ChartTableRequest):
-    """Generate table data for a given chart"""
+    """
+    Chart Table Endpoint
+    Generates formatted table data for displaying chart data in tabular format.
+    Handles both AI-generated and regular charts differently.
+    
+    Features:
+        - Pre-computed table data for AI-generated charts
+        - On-demand aggregation for regular charts
+        - Number formatting (integers, decimals, N/A for nulls)
+        - Returns headers and rows ready for UI display
+    """
     if req.chart_id not in CHARTS:
         raise HTTPException(status_code=404, detail="Chart not found")
     
@@ -489,6 +645,21 @@ async def get_chart_table(req: ChartTableRequest):
 
 @app.post("/fuse")
 async def fuse(req: FuseRequest):
+    """
+    Chart Fusion Endpoint
+    Intelligently merges two charts from the same dataset based on their structure.
+    Detects fusion patterns and creates appropriate combined visualizations.
+    
+    Fusion Patterns Supported:
+        1. Same Dimension + Different Measures -> Grouped/Stacked Bar
+        2. Same Measure + Different Dimensions -> Stacked/Comparison Chart
+        3. Measure Histogram + Dimension Count -> Distribution by Dimension
+        4. Two Measure Histograms -> Scatter Plot
+        5. Two Dimension Counts -> Heatmap/Frequency Chart
+    
+    Returns:
+        Fused chart with merged data, strategy recommendation, and visualization hints
+    """
     if req.chart1_id not in CHARTS or req.chart2_id not in CHARTS:
         raise HTTPException(status_code=404, detail="One or both charts not found")
 
@@ -665,6 +836,11 @@ async def fuse(req: FuseRequest):
 
 @app.post("/histogram")
 async def histogram(req: HistogramRequest):
+    """
+    Histogram Data Endpoint
+    Returns raw numeric values for a measure to create histograms on the frontend.
+    Includes statistical summary (sum, avg, min, max, count).
+    """
     if req.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
     df = DATASETS[req.dataset_id]
@@ -687,6 +863,11 @@ async def histogram(req: HistogramRequest):
 
 @app.post("/dimension_counts")
 async def dimension_counts(req: DimensionCountRequest):
+    """
+    Dimension Counts Endpoint
+    Returns value counts for a categorical dimension.
+    Used for bar charts and filter value lists.
+    """
     if req.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
     df = DATASETS[req.dataset_id]
@@ -702,7 +883,11 @@ async def dimension_counts(req: DimensionCountRequest):
 
 @app.post("/expression/validate")
 async def validate_expression(req: ExpressionValidateRequest):
-    """Validate expression syntax and field references"""
+    """
+    Expression Validation Endpoint
+    Validates mathematical expression syntax and field references.
+    Returns validation errors and available measures for autocomplete.
+    """
     try:
         parsed = _parse_expression(req.expression, req.dataset_id)
         return {
@@ -719,7 +904,11 @@ async def validate_expression(req: ExpressionValidateRequest):
 
 @app.post("/expression/evaluate")
 async def evaluate_expression(req: ExpressionRequest):
-    """Evaluate expression and return result"""
+    """
+    Expression Evaluation Endpoint
+    Evaluates a validated mathematical expression with actual dataset values.
+    Supports filtering before aggregation.
+    """
     try:
         result = _evaluate_expression(req.expression, req.dataset_id, req.filters)
         return result
@@ -731,7 +920,11 @@ async def evaluate_expression(req: ExpressionRequest):
 
 @app.get("/dataset/{dataset_id}/measures")
 async def get_dataset_measures(dataset_id: str):
-    """Get available measures for autocomplete"""
+    """
+    Dataset Measures Endpoint
+    Returns available measures, dimensions, and aggregation options for a dataset.
+    Used for autocomplete and validation in expression nodes.
+    """
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
     
@@ -757,7 +950,12 @@ async def get_dataset_measures(dataset_id: str):
 @app.post("/test-config")
 async def test_config(request: ConfigTestRequest):
     """
-    Test the user's API key and model configuration
+    AI Configuration Test Endpoint
+    Tests user's Gemini API key and model configuration.
+    Verifies credentials work before using AI features.
+    
+    Returns:
+        success: bool, error message if failed, token_usage for test query
     """
     try:
         print(f"🔧 Testing configuration:")
@@ -783,8 +981,21 @@ async def test_config(request: ConfigTestRequest):
 @app.post("/ai-explore")
 async def ai_explore_data(request: AIExploreRequest):
     """
-    SIMPLIFIED AI-powered data exploration using direct pandas DataFrame agent
-    Returns text-based results instead of creating new charts
+    AI Data Exploration Endpoint
+    AI-powered data exploration using Gemini LLM and pandas DataFrame analysis.
+    Answers natural language questions about chart data.
+    
+    Features:
+        - Natural language query processing
+        - Generates and executes pandas code
+        - Returns text answers with optional tabular data
+        - Tracks token usage for cost estimation
+    
+    Args:
+        request: Contains chart_id, user_query, api_key, model
+    
+    Returns:
+        success, answer, code_steps, reasoning_steps, tabular_data, token_usage
     """
     if request.chart_id not in CHARTS:
         raise HTTPException(status_code=404, detail="Chart not found")
@@ -850,8 +1061,16 @@ async def ai_explore_data(request: AIExploreRequest):
 @app.post("/ai-calculate-metric")
 async def ai_calculate_metric(request: MetricCalculationRequest):
     """
-    AI-powered metric calculation using natural language
-    Takes a dataset and natural language query, returns calculated metric value
+    AI Metric Calculation Endpoint
+    Calculates metrics from natural language descriptions using AI.
+    Used by expression nodes to compute values from text queries.
+    
+    Example Queries:
+        - "What is the average revenue per state?"
+        - "Calculate total population growth from 2018 to 2023"
+    
+    Returns:
+        success, value, formatted_value, explanation, token_usage
     """
     if request.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -894,14 +1113,18 @@ async def ai_calculate_metric(request: MetricCalculationRequest):
 
 
 @app.post("/list-models")
-def list_models( api_key: str) -> List[Dict[str, str]]:
-    
-        # Google Gemini doesn’t expose a simple model list API yet.
-        return [
-            {"label": "Gemini 1.5 Pro", "value": "gemini-1.5-pro"},
-            {"label": "Gemini 1.5 Flash", "value": "gemini-1.5-flash"},
-            {"label": "Gemini 2.5 Flash", "value": "gemini-2.5-flash"}
-            ]
+def list_models(api_key: str) -> List[Dict[str, str]]:
+    """
+    List Available AI Models Endpoint
+    Returns list of available Gemini models for user selection.
+    Currently returns a static list of Gemini models.
+    """
+    # Google Gemini doesn't expose a simple model list API yet.
+    return [
+        {"label": "Gemini 1.5 Pro", "value": "gemini-1.5-pro"},
+        {"label": "Gemini 1.5 Flash", "value": "gemini-1.5-flash"},
+        {"label": "Gemini 2.5 Flash", "value": "gemini-2.5-flash"}
+    ]
 
 class ChartInsightRequest(BaseModel):
     chart_id: str
@@ -910,7 +1133,18 @@ class ChartInsightRequest(BaseModel):
 
 @app.post("/chart-insights")
 async def generate_chart_insights(request: ChartInsightRequest):
-    """Generate basic statistical insights for a chart"""
+    """
+    Chart Insights Generation Endpoint
+    Generates AI-powered statistical insights for a chart.
+    Creates concise summaries highlighting key findings.
+    
+    Process:
+        1. Calculates basic statistics (min, max, mean, total)
+        2. Uses Gemini LLM to generate human-readable insight
+        3. Returns 2-3 sentence summary with token usage
+    
+    Used by: Insight sticky notes feature
+    """
     if request.chart_id not in CHARTS:
         raise HTTPException(status_code=404, detail="Chart not found")
     
@@ -957,6 +1191,106 @@ Provide only the insight text without any headers or formatting."""
     return {
         "success": True,
         "insight": response.strip(),
+        "statistics": stats,
+        "token_usage": token_usage
+    }
+
+class ReportSectionRequest(BaseModel):
+    chart_id: str
+    api_key: str
+    model: str = "gemini-2.0-flash"
+    ai_explore_result: Optional[str] = None
+
+@app.post("/generate-report-section")
+async def generate_report_section(request: ReportSectionRequest):
+    """
+    Report Section Generation Endpoint
+    Creates LLM-enhanced report sections for charts with professional formatting.
+    Combines statistical analysis with AI exploration results.
+    
+    Features:
+        - Auto-generates clear, concise subheadings (3-6 words)
+        - Produces short, crisp analysis (3-4 sentences)
+        - Incorporates AI exploration results if available
+        - Uses markdown formatting for easy editing
+        - Optimized for readability and actionable insights
+    
+    Returns:
+        success, report_section (markdown), chart_title, statistics, token_usage
+    
+    Used by: "Add to Report" feature in chart context menus
+    """
+    if request.chart_id not in CHARTS:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    
+    chart = CHARTS[request.chart_id]
+    dataset = DATASETS.get(chart["dataset_id"])
+    
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    # Get chart metadata
+    title = chart.get('title', 'Untitled Chart')
+    dimensions = chart.get("dimensions", [])
+    measures = chart.get("measures", [])
+    table_data = chart.get("table", [])
+    
+    # Calculate statistics
+    stats = {}
+    for measure in measures:
+        values = [row.get(measure, 0) for row in table_data if isinstance(row.get(measure), (int, float))]
+        if values:
+            stats[measure] = {
+                "min": min(values),
+                "max": max(values),
+                "mean": sum(values) / len(values),
+                "total": sum(values)
+            }
+    
+    # Build comprehensive prompt for LLM
+    formulator = GeminiDataFormulator(api_key=request.api_key, model=request.model)
+    
+    ai_section = f"""
+
+**AI Exploration Results:**
+{request.ai_explore_result}
+""" if request.ai_explore_result else ""
+    
+    prompt = f"""You are a data analyst writing a concise, clear report section. Generate SHORT, CRISP, and EASY-TO-UNDERSTAND analysis.
+
+**Chart Information:**
+Title: {title}
+Dimensions: {dimensions}
+Measures: {measures}
+
+**Statistical Summary:**
+{json.dumps(stats, indent=2)}
+
+**Top Data Points:**
+{json.dumps(table_data[:10], indent=2)}
+{ai_section}
+
+**Instructions:**
+1. Start with a SHORT, CLEAR subheading (3-6 words max, use ## markdown format) - NOT just the chart title
+2. Write ONLY 3-4 SHORT sentences (max 2 paragraphs)
+3. Be CRISP and DIRECT - no fluff or verbose language
+4. Highlight ONLY the most important finding or trend
+5. Use SIMPLE, EASY-TO-UNDERSTAND language (avoid jargon)
+6. If AI Exploration Results are provided, incorporate those insights
+7. Keep it CONCISE and ACTIONABLE
+
+Example good subheading: "## Strong Growth in Q3"
+Example bad subheading: "## Analysis of Population by State Chart"
+
+Generate the SHORT, CRISP report section now:"""
+
+    response, token_usage = formulator.run_gemini_with_usage(prompt)
+    
+    return {
+        "success": True,
+        "report_section": response.strip(),
+        "chart_title": title,
+        "chart_id": request.chart_id,
         "statistics": stats,
         "token_usage": token_usage
     }

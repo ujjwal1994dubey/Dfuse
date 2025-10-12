@@ -88,3 +88,64 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Print Styles for Report Export */
+@media print {
+  /* A4 page setup */
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+
+  /* Hide everything except the report panel */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the report content and its children */
+  #report-content,
+  #report-content * {
+    visibility: visible;
+  }
+
+  /* Position report content at top of page */
+  #report-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Prevent page breaks inside sections */
+  .border-l-4 {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Ensure images fit within page */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid;
+  }
+
+  /* Clean up text for print */
+  input[type="text"] {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    pointer-events: none !important;
+    color: inherit !important;
+  }
+
+  /* Remove interactive styling */
+  .cursor-pointer,
+  .hover\:bg-gray-50 {
+    cursor: default !important;
+  }
+
+  /* Ensure proper spacing */
+  .space-y-8 > * + * {
+    margin-top: 2rem !important;
+  }
+}

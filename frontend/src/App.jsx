@@ -4,12 +4,22 @@ import Plot from 'react-plotly.js';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Button, Badge, Card, CardHeader, CardContent, FileUpload, RadioGroup, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui';
-import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, MenuIcon } from 'lucide-react';
+import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, MenuIcon, Upload, Calculator, ArrowRight, Download } from 'lucide-react';
+import { marked } from 'marked';
 import './tiptap-styles.css';
 
+// Backend API endpoint URL
 const API = 'http://localhost:8000';
 
-// Chart Types Registry - Defines all supported chart types and their capabilities
+/**
+ * Chart Types Registry
+ * Defines all supported chart types and their capabilities including:
+ * - Chart type metadata (id, label, icon)
+ * - Compatibility rules based on dimensions and measures
+ * - Figure generation logic for each chart type
+ * 
+ * Supported types: Bar, Pie, Scatter, Line, Multi-Bar, Histogram
+ */
 const CHART_TYPES = {
   BAR: {
     id: 'bar',
@@ -494,7 +504,13 @@ const sanitizeLayout = (layout) => {
 // For now, let's use a simple approach without custom extensions
 // We'll implement autocomplete manually using a simple input approach
 
-// Arrow Node Component - SVG in local bbox space
+/**
+ * ArrowNode Component
+ * Renders a visual arrow/connector node on the canvas with customizable text label.
+ * Used to show relationships or flows between different elements.
+ * 
+ * @param {Object} data - Contains label text and styling information
+ */
 function ArrowNode({ data }) {
   const { id, start, end } = data;
 
@@ -520,7 +536,13 @@ function ArrowNode({ data }) {
   );
 }
 
-// Table Node Component
+/**
+ * TableNode Component
+ * Displays tabular data in a compact, scrollable table format on the canvas.
+ * Shows column headers and data rows with zebra striping for readability.
+ * 
+ * @param {Object} data - Contains table data, column names, and title
+ */
 function TableNode({ data }) {
   const { title, headers, rows, totalRows } = data;
   
@@ -570,7 +592,15 @@ function TableNode({ data }) {
   );
 }
 
-// Text Box Node Component - Sticky Note Style
+/**
+ * TextBoxNode Component
+ * A rich text editor node using Tiptap that allows users to create and edit
+ * formatted notes directly on the canvas. Supports bold, italic, lists, and headings.
+ * 
+ * @param {Object} data - Contains initial HTML content for the textbox
+ * @param {string} id - Unique identifier for this text node
+ * @param {boolean} selected - Whether this node is currently selected
+ */
 function TextBoxNode({ data, id, selected }) {
   const [isEditing, setIsEditing] = useState(data.isNew || false);
   const [text, setText] = useState(data.text || '');
@@ -702,7 +732,19 @@ function TextBoxNode({ data, id, selected }) {
   );
 }
 
-// TipTap-based Expression Node Component
+/**
+ * ExpressionNode Component
+ * Interactive calculator node that evaluates mathematical expressions in real-time.
+ * Supports basic arithmetic, math functions (sin, cos, sqrt, etc.), and variables.
+ * Connects to backend AI for complex expression parsing and evaluation.
+ * 
+ * @param {Object} data - Contains expression and result state
+ * @param {string} id - Unique identifier for this expression node
+ * @param {string} apiKey - Gemini API key for AI-powered expression evaluation
+ * @param {string} selectedModel - Gemini model to use
+ * @param {Function} setShowSettings - Opens settings panel if API key is missing
+ * @param {Function} updateTokenUsage - Updates token usage metrics
+ */
 function ExpressionNode({ data, id, apiKey, selectedModel, setShowSettings, updateTokenUsage }) {
   const [expression, setExpression] = useState(data.expression || '');
   const [result, setResult] = useState(data.result || null);
@@ -1519,7 +1561,16 @@ function ExpressionNode({ data, id, apiKey, selectedModel, setShowSettings, upda
   );
 }
 
-// Filter Dimension Component
+/**
+ * FilterDimension Component
+ * Collapsible filter panel for a specific dimension/column in the dataset.
+ * Shows all unique values with checkboxes for multi-select filtering.
+ * 
+ * @param {string} dimension - Name of the dimension to filter
+ * @param {string} datasetId - ID of the current dataset
+ * @param {Array} selectedValues - Currently selected filter values
+ * @param {Function} onToggle - Callback when filter values are toggled
+ */
 function FilterDimension({ dimension, datasetId, selectedValues, onToggle }) {
   const [values, setValues] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -1580,95 +1631,14 @@ function FilterDimension({ dimension, datasetId, selectedValues, onToggle }) {
   );
 }
 
-// Toolbar Component
-function Toolbar({ activeTool, onToolChange, selectedCharts = [], onMergeCharts, onClearSelection, onAutoLayout }) {
-  const tools = [
-    { id: 'select', name: 'Select', icon: MousePointer2, description: 'Select and move items' },
-    { id: 'arrow', name: 'Arrow', icon: MoveUpRight, description: 'Create arrows between points' },
-    { id: 'textbox', name: 'Text', icon: Type, description: 'Add text boxes' },
-    { id: 'expression', name: 'Expression', icon: SquareSigma, description: 'Create calculated expressions' },
-    // Future tools can be added here
-    // { id: 'sticky', name: 'Sticky', icon: '🗒️', description: 'Add sticky notes' },
-    // { id: 'highlighter', name: 'Highlight', icon: '🖍️', description: 'Highlight areas' },
-    // { id: 'lasso', name: 'Lasso', icon: '⭕', description: 'Lasso selection' },
-  ];
 
-  const canMerge = selectedCharts.length === 2;
-  const mergeDescription = selectedCharts.length === 0 ? 'Select 2 charts to merge' : 
-                          selectedCharts.length === 1 ? 'Select 1 more chart to merge' : 
-                          'Merge selected charts';
-  
-  return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white border border-gray-300 rounded-2xl shadow-lg p-2 z-50">
-      <div className="flex items-center space-x-1">
-        {tools.map(tool => {
-          const IconComponent = tool.icon;
-          return (
-            <button
-              key={tool.id}
-              onClick={() => onToolChange(tool.id)}
-              className={`flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 group ${
-                activeTool === tool.id 
-                  ? 'bg-blue-100 text-blue-700 shadow-inner'
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-              title={tool.description}
-            >
-              <IconComponent size={18} className="mb-1" />
-              <span className="text-xs font-medium">{tool.name}</span>
-            </button>
-          );
-        })}
-        
-        {/* Separator */}
-        <div className="h-12 w-px bg-gray-300 mx-2"></div>
-        
-        {/* Merge Tool */}
-        <button
-          onClick={canMerge ? onMergeCharts : undefined}
-          className={`flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 group relative ${
-            canMerge 
-              ? 'hover:bg-green-100 text-green-700 cursor-pointer'
-              : 'text-gray-400 cursor-not-allowed opacity-60'
-          }`}
-          title={mergeDescription}
-        >
-          <Merge size={18} className="mb-1" />
-          <span className="text-xs font-medium">Merge</span>
-          {selectedCharts.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {selectedCharts.length}
-            </span>
-          )}
-        </button>
-        
-        {/* Clear Selection Tool - only show if there are selections */}
-        {selectedCharts.length > 0 && (
-          <button
-            onClick={onClearSelection}
-            className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 group hover:bg-red-100 text-red-600 cursor-pointer"
-            title="Clear chart selection"
-          >
-            <X size={18} className="mb-1" />
-            <span className="text-xs font-medium">Clear</span>
-          </button>
-        )}
-        
-        {/* Hierarchical Layout Tool */}
-        <button
-          onClick={onAutoLayout}
-          className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 group hover:bg-purple-100 text-purple-700 cursor-pointer"
-          title="Arrange charts in organized rows with proper spacing"
-        >
-          <GitBranch size={18} className="mb-1" />
-          <span className="text-xs font-medium">Arrange</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Table Component for AI Results
+/**
+ * DataTable Component
+ * Generic table component that renders any array of objects as a data table.
+ * Used to display raw data, query results, or aggregated data.
+ * 
+ * @param {Array} data - Array of objects to display as table rows
+ */
 function DataTable({ data }) {
   if (!data || data.type !== 'table') return null;
   
@@ -1704,7 +1674,16 @@ function DataTable({ data }) {
   );
 }
 
-// Chart Type Selector Component
+/**
+ * ChartTypeSelector Component
+ * Dropdown menu that shows available chart type conversions based on current
+ * chart's dimensions and measures. Only displays compatible chart types.
+ * 
+ * @param {Array} dimensions - Current chart's dimension columns
+ * @param {Array} measures - Current chart's measure columns
+ * @param {string} currentType - Currently selected chart type ID
+ * @param {Function} onTypeChange - Callback when chart type is changed
+ */
 function ChartTypeSelector({ dimensions = [], measures = [], currentType, onTypeChange }) {
   const dims = dimensions.length;
   const meas = measures.length;
@@ -1742,7 +1721,33 @@ function ChartTypeSelector({ dimensions = [], measures = [], currentType, onType
   );
 }
 
-function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage }) {
+/**
+ * ChartNode Component
+ * The main visualization node that renders Plotly charts on the canvas.
+ * Supports multiple chart types, aggregation changes, AI exploration,
+ * table view, filtering, and report generation. This is the most complex
+ * component handling all chart interactions.
+ * 
+ * Features:
+ * - Chart type switching (bar, pie, scatter, line, etc.)
+ * - Aggregation method changes (sum, avg, min, max, count)
+ * - AI-powered chart exploration with natural language queries
+ * - Chart insight generation with sticky notes
+ * - Add to report functionality with LLM-enhanced summaries
+ * - Data table view with filtering capabilities
+ * - Dimension filtering with multi-select
+ * 
+ * @param {Object} data - Chart configuration including figure, title, dimensions, measures
+ * @param {string} id - Unique identifier for this chart node
+ * @param {boolean} selected - Whether this node is currently selected
+ * @param {Function} onSelect - Callback when chart is selected
+ * @param {string} apiKey - Gemini API key for AI features
+ * @param {string} selectedModel - Gemini model to use
+ * @param {Function} setShowSettings - Opens settings panel if API key is missing
+ * @param {Function} updateTokenUsage - Updates token usage metrics
+ * @param {Function} onAddToReport - Callback to add chart to report document
+ */
+function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage, onAddToReport }) {
   const { title, figure, isFused, strategy, stats, agg, dimensions = [], measures = [], onAggChange, onShowTable, table = [] } = data;
   const [menuOpen, setMenuOpen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -1803,18 +1808,17 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
         plotlyDivs.forEach(plotlyDiv => {
           if (plotlyDiv && plotlyDiv._fullLayout) {
             // Clean up Plotly internal references
-            if (plotlyDiv._hoverlayer) {
-              plotlyDiv._hoverlayer = null;
-            }
-            if (plotlyDiv._fullLayout) {
-              plotlyDiv._fullLayout = null;
-            }
-            if (plotlyDiv._fullData) {
-              plotlyDiv._fullData = null;
-            }
-            if (plotlyDiv._context) {
-              plotlyDiv._context = null;
-            }
+            plotlyDiv._hoverlayer = null;
+            plotlyDiv._fullLayout = null;
+            plotlyDiv._fullData = null;
+            plotlyDiv._context = null;
+            plotlyDiv._rehover = null;
+            plotlyDiv._hoversubplot = null;
+            plotlyDiv._hoverdata = null;
+            plotlyDiv._hoverpoints = null;
+            plotlyDiv._maindrag = null;
+            plotlyDiv._mainhover = null;
+            
             // Remove event listeners
             if (plotlyDiv.removeAllListeners) {
               plotlyDiv.removeAllListeners();
@@ -1825,12 +1829,16 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
         // Also try to find by data-id attribute
         const specificDiv = document.querySelector(`[data-id="${id}"]`);
         if (specificDiv) {
-          if (specificDiv._hoverlayer) {
-            specificDiv._hoverlayer = null;
-          }
-          if (specificDiv._fullLayout) {
-            specificDiv._fullLayout = null;
-          }
+          specificDiv._hoverlayer = null;
+          specificDiv._fullLayout = null;
+          specificDiv._fullData = null;
+          specificDiv._context = null;
+          specificDiv._rehover = null;
+          specificDiv._hoversubplot = null;
+          specificDiv._hoverdata = null;
+          specificDiv._hoverpoints = null;
+          specificDiv._maindrag = null;
+          specificDiv._mainhover = null;
         }
       } catch (error) {
         console.warn('Plotly cleanup warning:', error);
@@ -2055,6 +2063,110 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
       setAiLoading(false);
     }
   };
+
+  const handleAddToReport = async () => {
+    if (!apiKey || !apiKey.trim()) {
+      alert('⚠️ Please configure your Gemini API key in Settings first.');
+      setShowSettings(true);
+      return;
+    }
+    
+    setMenuOpen(false);
+    setAiLoading(true);
+    
+    try {
+      // Step 1: Capture chart as image using canvas
+      const chartElement = document.querySelector(`[data-id="${id}"] .js-plotly-plot`);
+      if (!chartElement) {
+        throw new Error('Chart not found');
+      }
+      
+      // Find the SVG element inside the plot
+      const svgElement = chartElement.querySelector('.main-svg');
+      if (!svgElement) {
+        throw new Error('Chart SVG not found');
+      }
+      
+      // Get the SVG dimensions
+      const bbox = svgElement.getBoundingClientRect();
+      const width = bbox.width || 800;
+      const height = bbox.height || 500;
+      
+      // Create a canvas to draw the chart
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      
+      // Create an image from the SVG
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      
+      // Load the SVG as an image and draw it on canvas
+      const chartImage = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Failed to load chart image'));
+        };
+        img.src = url;
+      });
+      
+      // Step 2: Call backend to generate report section
+      const response = await fetch(`${API}/generate-report-section`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chart_id: id,
+          api_key: apiKey,
+          model: selectedModel,
+          ai_explore_result: aiResult?.answer || null
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+      
+      const result = await response.json();
+      
+      // Step 3: Update token usage
+      if (result.token_usage) {
+        updateTokenUsage(result.token_usage);
+      }
+      
+      // Step 4: Add to report
+      const newSection = {
+        id: `section-${Date.now()}`,
+        chartId: id,
+        chartTitle: result.chart_title,
+        chartImage: chartImage,
+        content: result.report_section,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Call parent handler
+      if (onAddToReport) {
+        onAddToReport(newSection);
+      }
+      
+    } catch (error) {
+      console.error('Add to report failed:', error);
+      // Show error in console, no alert needed as report panel will open
+      console.error(`Failed to add to report: ${error.message}`);
+    } finally {
+      setAiLoading(false);
+    }
+  };
   
   // Determine chart size based on chart type
   const isDualAxis = strategy === 'same-dimension-different-measures' && title?.includes('(Dual Scale)');
@@ -2181,6 +2293,18 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
                 </DropdownMenuItem>
               )}
               
+              {/* Add to Report Option */}
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddToReport();
+                  setMenuOpen(false);
+                }}
+              >
+                <File size={14} className="mr-2" />
+                Add to Report
+              </DropdownMenuItem>
+              
               {/* Aggregation Options */}
               {canChangeAgg && (
                 <>
@@ -2235,15 +2359,16 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
           onPurge={(figure, graphDiv) => {
             // Cleanup when Plotly is purged/destroyed
             if (graphDiv) {
-              if (graphDiv._hoverlayer) {
-                graphDiv._hoverlayer = null;
-              }
-              if (graphDiv._fullLayout) {
-                graphDiv._fullLayout = null;
-              }
-              if (graphDiv._fullData) {
-                graphDiv._fullData = null;
-              }
+              graphDiv._hoverlayer = null;
+              graphDiv._fullLayout = null;
+              graphDiv._fullData = null;
+              graphDiv._context = null;
+              graphDiv._rehover = null;
+              graphDiv._hoversubplot = null;
+              graphDiv._hoverdata = null;
+              graphDiv._hoverpoints = null;
+              graphDiv._maindrag = null;
+              graphDiv._mainhover = null;
             }
           }}
           config={{
@@ -2498,7 +2623,15 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
   );
 }
 
-// Insight Sticky Note Component
+/**
+ * InsightStickyNote Component
+ * A draggable and resizable sticky note that displays AI-generated chart insights.
+ * Can be repositioned and resized to accommodate different insight lengths.
+ * 
+ * @param {string} content - The insight text to display
+ * @param {Object} initialPosition - Starting x,y coordinates {x, y}
+ * @param {Function} onClose - Callback when sticky note is closed
+ */
 function InsightStickyNote({ 
   insight, 
   onClose, 
@@ -2595,7 +2728,395 @@ function InsightStickyNote({
   );
 }
 
-// Component to handle custom wheel events with proper React Flow hooks
+/**
+ * UnifiedSidebar Component
+ * Left-side vertical toolbar that provides access to all main tools and actions.
+ * Includes panel toggles (upload, variables), tool selectors (select, arrow, text, expression),
+ * and action buttons (merge, arrange).
+ * 
+ * @param {boolean} uploadPanelOpen - Whether upload panel is currently open
+ * @param {Function} setUploadPanelOpen - Toggle upload panel visibility
+ * @param {boolean} variablesPanelOpen - Whether variables panel is currently open
+ * @param {Function} setVariablesPanelOpen - Toggle variables panel visibility
+ * @param {string} activeTool - Currently active tool ID
+ * @param {Function} onToolChange - Callback when tool selection changes
+ * @param {Function} onMergeCharts - Callback to merge selected charts
+ * @param {Function} onAutoLayout - Callback to auto-arrange nodes
+ * @param {number} selectedChartsCount - Number of currently selected charts
+ * @param {boolean} canMerge - Whether merge action is enabled (requires exactly 2 charts)
+ */
+function UnifiedSidebar({
+  // Toggle states
+  uploadPanelOpen,
+  setUploadPanelOpen,
+  variablesPanelOpen,
+  setVariablesPanelOpen,
+  activeTool,
+  onToolChange,
+  // Action handlers
+  onMergeCharts,
+  onAutoLayout,
+  selectedChartsCount,
+  canMerge
+}) {
+  const toggleButtons = [
+    { 
+      id: 'upload', 
+      icon: Upload, 
+      label: 'Upload', 
+      onClick: () => {
+        setUploadPanelOpen(!uploadPanelOpen);
+        if (!uploadPanelOpen) setVariablesPanelOpen(false); // Close variables panel when opening upload
+      }, 
+      active: uploadPanelOpen 
+    },
+    { 
+      id: 'variables', 
+      icon: ChartColumn, 
+      label: 'Variables', 
+      onClick: () => {
+        setVariablesPanelOpen(!variablesPanelOpen);
+        if (!variablesPanelOpen) setUploadPanelOpen(false); // Close upload panel when opening variables
+      }, 
+      active: variablesPanelOpen 
+    },
+  ];
+  
+  const toolButtons = [
+    { id: 'select', icon: MousePointer2, label: 'Select', tool: true },
+    { id: 'arrow', icon: ArrowRight, label: 'Arrow', tool: true },
+    { id: 'textbox', icon: Type, label: 'Text', tool: true },
+    { id: 'expression', icon: Calculator, label: 'Expression', tool: true },
+  ];
+  
+  const actionButtons = [
+    { id: 'merge', icon: Merge, label: 'Merge', onClick: onMergeCharts, disabled: !canMerge, badge: selectedChartsCount },
+    { id: 'arrange', icon: GitBranch, label: 'Arrange', onClick: onAutoLayout },
+  ];
+  
+  return (
+    <div className="w-[60px] bg-white border-r border-gray-300 flex flex-col items-center py-4 gap-2">
+      {/* Toggle Buttons */}
+      {toggleButtons.map(btn => (
+        <button
+          key={btn.id}
+          onClick={btn.onClick}
+          className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all ${
+            btn.active 
+              ? 'bg-blue-100 text-blue-600' 
+              : 'hover:bg-gray-100 text-gray-600'
+          }`}
+          title={btn.label}
+        >
+          <btn.icon size={20} />
+        </button>
+      ))}
+      
+      {/* Separator */}
+      <div className="w-8 h-px bg-gray-300 my-2" />
+      
+      {/* Tool Buttons */}
+      {toolButtons.map(btn => (
+        <button
+          key={btn.id}
+          onClick={() => {
+            // Toggle functionality: if already active, switch to select; otherwise activate the tool
+            if (activeTool === btn.id) {
+              onToolChange('select');
+            } else {
+              onToolChange(btn.id);
+            }
+          }}
+          className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all ${
+            activeTool === btn.id 
+              ? 'bg-blue-100 text-blue-600 shadow-inner' 
+              : 'hover:bg-gray-100 text-gray-600'
+          }`}
+          title={btn.label}
+        >
+          <btn.icon size={20} />
+        </button>
+      ))}
+      
+      {/* Separator */}
+      <div className="w-8 h-px bg-gray-300 my-2" />
+      
+      {/* Action Buttons */}
+      {actionButtons.map(btn => (
+        <button
+          key={btn.id}
+          onClick={btn.onClick}
+          disabled={btn.disabled}
+          className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all relative ${
+            btn.disabled 
+              ? 'text-gray-300 cursor-not-allowed' 
+              : 'hover:bg-gray-100 text-gray-600'
+          }`}
+          title={btn.label}
+        >
+          <btn.icon size={20} />
+          {btn.badge > 0 && (
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+              {btn.badge}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * SlidingPanel Component
+ * Reusable collapsible side panel that slides in from the left.
+ * Used for upload and variable selection interfaces.
+ * 
+ * @param {boolean} isOpen - Whether panel is currently visible
+ * @param {string} title - Header title text
+ * @param {ReactNode} children - Content to display inside panel
+ * @param {Function} onClose - Callback when panel is closed
+ */
+function SlidingPanel({ isOpen, title, children, onClose }) {
+  return (
+    <div 
+      className={`bg-white border-r border-gray-300 transition-all duration-300 overflow-hidden flex flex-col
+        ${isOpen ? 'w-80' : 'w-0'}`}
+    >
+      {isOpen && (
+        <>
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-lg font-semibold">{title}</h2>
+            <Button onClick={onClose} variant="ghost" size="sm">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {children}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * ReportSection Component
+ * Individual report section displaying a chart image and its AI-generated insights.
+ * Supports inline editing of content (markdown format) and section removal.
+ * 
+ * Features:
+ * - Displays chart image
+ * - Shows markdown-formatted insights
+ * - Click-to-edit with textarea
+ * - Save/Cancel edit actions
+ * - Remove section button
+ * - Hidden action buttons in print mode
+ * 
+ * @param {Object} section - Section data containing chartImage, content, id, chartTitle
+ * @param {Function} onRemove - Callback to remove this section from report
+ * @param {Function} onUpdate - Callback to update section content after editing
+ */
+function ReportSection({ section, onRemove, onUpdate }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(section.content);
+
+  const handleSave = () => {
+    onUpdate(section.id, editedContent);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditedContent(section.content);
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="border-l-4 border-blue-500 pl-4 space-y-4 print:border-l-2 print:pl-6 print:mb-8">
+      {/* Chart Image */}
+      {section.chartImage && (
+        <img 
+          src={section.chartImage} 
+          alt={section.chartTitle}
+          className="w-full rounded-lg shadow-sm border print:max-w-full print:h-auto print:mb-4"
+        />
+      )}
+      
+      {/* Editable Content */}
+      {isEditing ? (
+        <div className="space-y-2 print:hidden">
+          <textarea
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            className="w-full min-h-[200px] p-3 border border-gray-300 rounded-md font-sans text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Edit your report content (supports markdown)..."
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Save
+            </button>
+            <button
+              onClick={handleCancel}
+              className="px-3 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div 
+          className="prose prose-sm max-w-none cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors print:cursor-default print:hover:bg-white print:p-0"
+          onClick={() => setIsEditing(true)}
+          title="Click to edit"
+        >
+          <div dangerouslySetInnerHTML={{ __html: marked.parse(editedContent) }} />
+        </div>
+      )}
+      
+      {/* Action Buttons - Hidden in print */}
+      <div className="flex gap-2 print:hidden">
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+          >
+            <Edit size={12} />
+            Edit
+          </button>
+        )}
+        <button
+          onClick={onRemove}
+          className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1"
+        >
+          <X size={12} />
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ReportPanel Component
+ * Right-side collapsible panel that displays the full report document.
+ * Contains editable title, subheading, and multiple chart sections.
+ * Supports PDF export via browser print dialog.
+ * 
+ * Features:
+ * - Editable report title (default: "Data Analysis Report")
+ * - Editable subheading (default: "Created on: dd/mm/yyyy")
+ * - Multiple chart sections with insights
+ * - PDF export button (triggers window.print)
+ * - Empty state message when no sections exist
+ * - Print-optimized styling (A4 format)
+ * 
+ * @param {boolean} isOpen - Whether panel is currently visible
+ * @param {Function} onClose - Callback when panel is closed
+ * @param {Array} reportSections - Array of report section objects
+ * @param {Function} onUpdateSections - Callback to update entire sections array
+ */
+function ReportPanel({ isOpen, onClose, reportSections, onUpdateSections }) {
+  const [reportTitle, setReportTitle] = useState('Data Analysis Report');
+  const [reportSubheading, setReportSubheading] = useState(() => {
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    return `Created on: ${dd}/${mm}/${yyyy}`;
+  });
+
+  const handleUpdateSection = (sectionId, newContent) => {
+    const updatedSections = reportSections.map(section =>
+      section.id === sectionId ? { ...section, content: newContent } : section
+    );
+    onUpdateSections(updatedSections);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div 
+      className={`bg-white border-l border-gray-300 transition-all duration-300 overflow-hidden flex flex-col
+        ${isOpen ? 'w-[500px]' : 'w-0'}`}
+    >
+      {isOpen && (
+        <>
+          {/* Header - Hidden in print */}
+          <div className="flex items-center justify-between p-4 border-b print:hidden">
+            <h2 className="text-lg font-semibold">Report Document</h2>
+            <div className="flex gap-2">
+              <Button 
+                onClick={handlePrint} 
+                variant="ghost" 
+                size="sm"
+                title="Export as PDF"
+              >
+                <Download size={16} />
+              </Button>
+              <Button onClick={onClose} variant="ghost" size="sm">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          
+          {/* Report Content - Only this is visible in print */}
+          <div className="flex-1 overflow-y-auto" id="report-content">
+            {reportSections.length === 0 ? (
+              <div className="p-8 text-center text-gray-500 print:hidden">
+                <File size={48} className="mx-auto mb-4 opacity-30" />
+                <p className="text-lg font-medium mb-2">Empty Report</p>
+                <p className="text-sm">Add charts to your report using the "Add to Report" option from chart menus</p>
+              </div>
+            ) : (
+              <div className="p-6 space-y-8 print:p-8">
+                {/* Editable Report Header */}
+                <div className="border-b pb-4 print:border-b-2 print:border-gray-300">
+                  <input
+                    type="text"
+                    value={reportTitle}
+                    onChange={(e) => setReportTitle(e.target.value)}
+                    placeholder="Click to edit report title"
+                    className="text-2xl font-bold w-full border-none focus:outline-none focus:ring-0 hover:bg-gray-50 p-2 rounded print:p-0 print:hover:bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={reportSubheading}
+                    onChange={(e) => setReportSubheading(e.target.value)}
+                    placeholder="Click to edit subheading"
+                    className="text-sm text-gray-500 mt-2 w-full border-none focus:outline-none focus:ring-0 hover:bg-gray-50 p-2 rounded print:p-0 print:hover:bg-white"
+                  />
+                </div>
+                
+                {/* Report Sections */}
+                {reportSections.map((section, idx) => (
+                  <ReportSection
+                    key={section.id}
+                    section={section}
+                    onRemove={() => onUpdateSections(reportSections.filter(s => s.id !== section.id))}
+                    onUpdate={handleUpdateSection}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * CustomReactFlow Component
+ * Wrapper component around ReactFlow that adds custom pan/zoom behaviors.
+ * Enables canvas panning with two-finger scroll and pinch-to-zoom gestures.
+ * 
+ * @param {ReactNode} children - ReactFlow child components
+ * @param {Object} props - Additional ReactFlow props (passed through)
+ */
 function CustomReactFlow({ children, ...props }) {
   return (
     <ReactFlow
@@ -2606,6 +3127,21 @@ function CustomReactFlow({ children, ...props }) {
   );
 }
 
+/**
+ * ReactFlowWrapper Component
+ * Main application component that manages all state and orchestrates the data flow.
+ * Handles:
+ * - Dataset upload and management
+ * - Chart creation and manipulation
+ * - Node and edge management for React Flow canvas
+ * - Tool interactions (arrow, text, expression tools)
+ * - Chart merging and auto-layout
+ * - AI configuration and token tracking
+ * - Report generation and management
+ * 
+ * This is the core orchestrator that connects all UI components and manages
+ * the application state. It renders the layout with sidebars, panels, canvas, and report.
+ */
 function ReactFlowWrapper() {
   const [datasetId, setDatasetId] = useState(null);
   const [csvFileName, setCsvFileName] = useState('');
@@ -2625,7 +3161,14 @@ function ReactFlowWrapper() {
   
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
-  const [isPanelOpen, setIsPanelOpen] = useState(true); // Panel open by default
+  
+  // Sidebar panel states
+  const [uploadPanelOpen, setUploadPanelOpen] = useState(false);
+  const [variablesPanelOpen, setVariablesPanelOpen] = useState(false);
+  
+  // Report state
+  const [reportPanelOpen, setReportPanelOpen] = useState(false);
+  const [reportSections, setReportSections] = useState([]);
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [selectedModel, setSelectedModel] = useState(localStorage.getItem('gemini_model') || 'gemini-2.0-flash');
   const [configStatus, setConfigStatus] = useState('idle'); // idle, testing, success, error
@@ -2671,6 +3214,13 @@ function ReactFlowWrapper() {
     }
   }, []);
 
+  // Handler for adding sections to report (must be before nodeTypes)
+  const handleAddReportSection = useCallback((newSection) => {
+    setReportSections(prev => [...prev, newSection]);
+    // Auto-open report panel when section is added
+    setReportPanelOpen(true);
+  }, []);
+
   // Node types with access to settings state
   const nodeTypes = useMemo(() => ({
     chart: (props) => (
@@ -2683,6 +3233,7 @@ function ReactFlowWrapper() {
         selectedModel={selectedModel}
         setShowSettings={setShowSettings}
         updateTokenUsage={updateTokenUsage}
+        onAddToReport={handleAddReportSection}
       />
     ),
     arrow: ArrowNode,
@@ -2697,7 +3248,7 @@ function ReactFlowWrapper() {
         updateTokenUsage={updateTokenUsage}
       />
     )
-  }), [apiKey, selectedModel, setShowSettings, updateTokenUsage]);
+  }), [apiKey, selectedModel, setShowSettings, updateTokenUsage, handleAddReportSection]);
 
   // Viewport transform: [translateX, translateY, zoom]
   const transform = useStore(s => s.transform);
@@ -2752,11 +3303,29 @@ function ReactFlowWrapper() {
           try {
             const plotlyDivs = document.querySelectorAll('.js-plotly-plot');
             plotlyDivs.forEach(plotlyDiv => {
-              if (plotlyDiv && plotlyDiv._hoverlayer) {
+              if (plotlyDiv) {
+                // Clean up all Plotly internal references
                 plotlyDiv._hoverlayer = null;
-              }
-              if (plotlyDiv && plotlyDiv._fullLayout) {
                 plotlyDiv._fullLayout = null;
+                plotlyDiv._fullData = null;
+                plotlyDiv._context = null;
+                plotlyDiv._rehover = null;
+                plotlyDiv._hoversubplot = null;
+                plotlyDiv._hoverdata = null;
+                plotlyDiv._hoverpoints = null;
+                
+                // Remove all event listeners
+                if (plotlyDiv.removeAllListeners) {
+                  plotlyDiv.removeAllListeners();
+                }
+                
+                // Clear any remaining references
+                if (plotlyDiv._maindrag) {
+                  plotlyDiv._maindrag = null;
+                }
+                if (plotlyDiv._mainhover) {
+                  plotlyDiv._mainhover = null;
+                }
               }
             });
           } catch (error) {
@@ -4095,116 +4664,124 @@ function ReactFlowWrapper() {
   });
 
   return (
-    <div className="w-screen h-screen relative">
-      {/* Menu Toggle Button */}
-      <div className="absolute top-4 left-4 z-50">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsPanelOpen(!isPanelOpen)}
-          className="h-8 w-8 p-0 bg-white border border-gray-300 shadow-sm hover:bg-gray-50"
-          title={isPanelOpen ? "Hide Panel" : "Show Panel"}
-        >
-          <MenuIcon size={16} className="text-gray-600" />
-        </Button>
-      </div>
-
-      {/* Floating Side Panel */}
-      {isPanelOpen && (
-        <div className="fixed top-14 left-4 w-80 max-h-[calc(100vh-10rem)] bg-white border border-gray-300 rounded-2xl shadow-lg z-40 overflow-hidden">
-        <Card className="h-full border-0">
-          <CardHeader className="pb-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <SquaresExclude size={40} className="text-blue-600 shrink-0" />
-                <div className="flex flex-col">
-                  <h1 className="text-xl font-bold text-gray-900">D.Fuse</h1>
-                  <p className="text-sm text-muted-foreground">Data exploration notebook</p>
-                </div>
+    <div className="w-screen h-screen flex">
+      {/* Unified Sidebar */}
+      <UnifiedSidebar
+        uploadPanelOpen={uploadPanelOpen}
+        setUploadPanelOpen={setUploadPanelOpen}
+        variablesPanelOpen={variablesPanelOpen}
+        setVariablesPanelOpen={setVariablesPanelOpen}
+        activeTool={activeTool}
+        onToolChange={handleToolChange}
+        onMergeCharts={mergeSelectedCharts}
+        onAutoLayout={applyHierarchicalLayout}
+        selectedChartsCount={selectedCharts.length}
+        canMerge={selectedCharts.length === 2}
+      />
+      
+      {/* Upload Panel */}
+      <SlidingPanel 
+        isOpen={uploadPanelOpen} 
+        title="Upload Data"
+        onClose={() => setUploadPanelOpen(false)}
+      >
+        <div className="p-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <SquaresExclude size={40} className="text-blue-600 shrink-0" />
+              <div className="flex flex-col">
+                <h1 className="text-xl font-bold text-gray-900">D.Fuse</h1>
+                <p className="text-sm text-muted-foreground">Data exploration notebook</p>
               </div>
+            </div>
+            
+            <div className="pt-4">
+              <FileUpload 
+                accept=".csv" 
+                onFileChange={(file) => uploadCSV(file)}
+              >
+                {datasetId ? 'Replace CSV' : 'Choose CSV File'}
+              </FileUpload>
               
-              <div className="pt-4">
-                <FileUpload 
-                  accept=".csv" 
-                  onFileChange={(file) => uploadCSV(file)}
-                >
-                  {datasetId ? 'Replace CSV' : 'Choose CSV File'}
-                </FileUpload>
-                
-                {(csvFileName || datasetId) && (
-                  <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-gray-50/30">
-                    {csvFileName && (
-                      <div className="text-sm text-gray-600 flex items-center gap-2 mb-2">
-                        <File size={16} />
-                        {csvFileName}
-                      </div>
-                    )}
-                    
-                    {datasetId && (
-                      <>
-                        <Badge variant="outline" className="w-fit mb-2">
-                          Dataset: {datasetId.substring(0, 8)}...
+              {(csvFileName || datasetId) && (
+                <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-gray-50/30">
+                  {csvFileName && (
+                    <div className="text-sm text-gray-600 flex items-center gap-2 mb-2">
+                      <File size={16} />
+                      {csvFileName}
+                    </div>
+                  )}
+                  
+                  {datasetId && (
+                    <>
+                      <Badge variant="outline" className="w-fit mb-2">
+                        Dataset: {datasetId.substring(0, 8)}...
+                      </Badge>
+                      <div className="flex gap-1 flex-wrap">
+                        <Badge variant="secondary" className="text-xs">
+                          {availableDimensions.length} dimensions
                         </Badge>
-                        <div className="flex gap-1 flex-wrap">
-                          <Badge variant="secondary" className="text-xs">
-                            {availableDimensions.length} dimensions
-                          </Badge>
-                          <Badge variant="secondary" className="text-xs">
-                            {availableMeasures.length} measures
-                          </Badge>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-12rem)]">
-
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium">Dimensions</h3>
+                        <Badge variant="secondary" className="text-xs">
+                          {availableMeasures.length} measures
+                        </Badge>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <RadioGroup
-                  options={availableDimensions}
-                  value={selectedDimension}
-                  onChange={setSelectedDimension}
-                  name="dimensions"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium">Measures</h3>
-                </div>
-                <RadioGroup
-                  options={availableMeasures}
-                  value={selectedMeasure}
-                  onChange={setSelectedMeasure}
-                  name="measures"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Button 
-                  className="w-full gap-2 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:bg-gray-300 disabled:text-gray-500" 
-                  onClick={createVisualization}
-                  disabled={!selectedDimension && !selectedMeasure}
-                >
-                  <ChartColumn size={16} />
-                  Visualise
-                </Button>
-              </div>
+              )}
             </div>
-            </CardContent>
-        </Card>
-      </div>
-      )}
+          </div>
+        </div>
+      </SlidingPanel>
+      
+      {/* Variables Panel */}
+      <SlidingPanel 
+        isOpen={variablesPanelOpen} 
+        title="Select Variables"
+        onClose={() => setVariablesPanelOpen(false)}
+      >
+        <div className="p-4">
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium">Dimensions</h3>
+              </div>
+              <RadioGroup
+                options={availableDimensions}
+                value={selectedDimension}
+                onChange={setSelectedDimension}
+                name="dimensions"
+              />
+            </div>
 
-      {/* Main Canvas - Full Width */}
-      <div className="w-full h-full absolute inset-0">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium">Measures</h3>
+              </div>
+              <RadioGroup
+                options={availableMeasures}
+                value={selectedMeasure}
+                onChange={setSelectedMeasure}
+                name="measures"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Button 
+                className="w-full gap-2 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:bg-gray-300 disabled:text-gray-500" 
+                onClick={createVisualization}
+                disabled={!selectedDimension && !selectedMeasure}
+              >
+                <ChartColumn size={16} />
+                Visualise
+              </Button>
+            </div>
+          </div>
+        </div>
+      </SlidingPanel>
+
+      {/* Main Canvas - Flex-1 */}
+      <div className="flex-1 relative">
         <CustomReactFlow
           nodes={nodesWithSelection}
           edges={edges}
@@ -4265,28 +4842,40 @@ function ReactFlowWrapper() {
           >
             <Settings size={16} className="text-gray-600" />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setReportPanelOpen(!reportPanelOpen)}
+            className={`h-8 w-8 p-0 bg-white border border-gray-300 shadow-sm hover:bg-gray-50 ${
+              reportPanelOpen ? 'bg-blue-50 border-blue-300 text-blue-600' : ''
+            }`}
+            title={reportPanelOpen ? 'Hide Report' : 'Show Report'}
+          >
+            <File size={16} className="text-gray-600" />
+          </Button>
           {showSettings && <SettingsPanel />}
         </div>
         
-        {/* Tool status indicator - moved to avoid overlap with settings */}
-        <div className="absolute top-4 right-16 bg-white border border-gray-300 rounded-lg px-3 py-1 text-sm text-gray-600 shadow-sm z-10">
-          <span className="font-medium">Active Tool:</span> {activeTool === 'select' ? 'Select' : activeTool === 'arrow' ? 'Arrow' : 'Text Box'}
-        </div>
-        
-        <Toolbar 
-          activeTool={activeTool} 
-          onToolChange={handleToolChange} 
-          selectedCharts={selectedCharts}
-          onMergeCharts={mergeSelectedCharts}
-          onClearSelection={() => setSelectedCharts([])}
-          onAutoLayout={applyHierarchicalLayout}
-        />
       </div>
+
+      {/* Report Panel */}
+      <ReportPanel
+        isOpen={reportPanelOpen}
+        onClose={() => setReportPanelOpen(false)}
+        reportSections={reportSections}
+        onUpdateSections={setReportSections}
+      />
     </div>
   );
 }
 
-// Main App component with ReactFlowProvider
+/**
+ * App Component (Main Entry Point)
+ * Root component that wraps ReactFlowWrapper with ReactFlowProvider context.
+ * Provides React Flow context to all child components for canvas interactions.
+ * 
+ * @returns {JSX.Element} The complete D.Fuse application
+ */
 export default function App() {
   return (
     <ReactFlowProvider>

@@ -23,10 +23,38 @@ except ImportError as e:
 
 class GeminiDataFormulator:
     """
-    Data Formulator with Gemini 2.0 Flash for natural language data transformations
+    Gemini Data Formulator - AI-Powered Data Analysis Engine
+    
+    Main class that provides natural language data transformation capabilities using Google's Gemini LLM.
+    Generates and executes pandas code to answer data questions in plain English.
+    
+    Features:
+        - Natural language to pandas code generation
+        - Safe code execution in sandboxed environment
+        - Token usage tracking for cost estimation
+        - Statistical summary generation
+        - Metric calculation from text queries
+    
+    Architecture:
+        1. User query → LLM generates pandas code
+        2. Code validation and cleaning
+        3. Safe execution on real dataset
+        4. Result formatting and presentation
     """
     
     def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.0-flash-exp"):
+        """
+        Initialize Gemini Data Formulator
+        
+        Args:
+            api_key: Google Gemini API key (uses default if not provided)
+            model: Gemini model name (default: "gemini-2.0-flash-exp")
+        
+        Sets up:
+            - Gemini API configuration
+            - Model instance
+            - LangChain pandas agent (if available)
+        """
         self.api_key = api_key or "AIzaSyDTs3BYcLe_1XF8q3VW-blr_6wcG_mepgE"
         self.model_name = model
         genai.configure(api_key=self.api_key)
@@ -51,7 +79,16 @@ class GeminiDataFormulator:
             print("⚠️  LangChain not available, using structured parsing only")
     
     def _get_langchain_model_name(self, model: str) -> str:
-        """Convert frontend model names to LangChain compatible names"""
+        """
+        Model Name Mapper
+        Converts frontend model names to LangChain-compatible model identifiers.
+        
+        Args:
+            model: Frontend model name (e.g., "gemini-2.0-flash-exp")
+        
+        Returns:
+            LangChain-compatible model name
+        """
         model_mapping = {
             "gemini-1.5-flash": "gemini-1.5-flash",
             "gemini-2.0-flash": "gemini-2.0-flash", 
@@ -61,7 +98,18 @@ class GeminiDataFormulator:
     
     def run_gemini(self, prompt: str, model: str = "gemini-2.0-flash-exp") -> str:
         """
-        Calls Gemini with a natural language prompt and returns the response text.
+        Basic Gemini API Call
+        Sends a prompt to Gemini LLM and returns the text response.
+        Includes fallback simulation if API fails.
+        
+        Args:
+            prompt: Natural language prompt/question
+            model: Model name (currently not used, instance model is used)
+        
+        Returns:
+            str: Generated response text
+        
+        Note: For token tracking, use run_gemini_with_usage() instead
         """
         try:
             response = self.model.generate_content(prompt)
@@ -73,7 +121,22 @@ class GeminiDataFormulator:
     
     def run_gemini_with_usage(self, prompt: str, model: str = "gemini-2.0-flash-exp") -> tuple[str, dict]:
         """
-        Calls Gemini with a natural language prompt and returns both response text and token usage.
+        Gemini API Call with Token Tracking
+        Sends a prompt to Gemini and returns both the response and token usage metrics.
+        Essential for cost estimation and tracking.
+        
+        Args:
+            prompt: Natural language prompt/question
+            model: Model name (currently not used, instance model is used)
+        
+        Returns:
+            tuple: (response_text, token_usage_dict)
+            - response_text: Generated text
+            - token_usage_dict: {"inputTokens": int, "outputTokens": int, "totalTokens": int}
+        
+        Token Estimation:
+            - Tries to extract from response.usage_metadata
+            - Falls back to word-count estimation if unavailable
         """
         try:
             response = self.model.generate_content(prompt)
@@ -103,7 +166,22 @@ class GeminiDataFormulator:
             return self._simulate_gemini_response(prompt), {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
     
     def _simulate_gemini_response(self, prompt: str) -> str:
-        """Simulate Gemini responses for common data transformation patterns"""
+        """
+        Fallback Response Simulator
+        Simulates Gemini responses when API is unavailable or fails.
+        Uses pattern matching to detect common data transformation queries.
+        
+        Args:
+            prompt: User's natural language query
+        
+        Returns:
+            str: Simulated response based on query patterns
+        
+        Supported Patterns:
+            - Filter operations (e.g., "filter where column = value")
+            - Group by operations
+            - Aggregations (sum, average, count)
+        """
         query = prompt.lower()
         
         # Pattern matching for common transformations
@@ -133,7 +211,19 @@ class GeminiDataFormulator:
     
     def test_configuration(self) -> Dict[str, Any]:
         """
-        Test the API key and model configuration
+        Configuration Tester
+        Tests the Gemini API key and model configuration with a simple query.
+        Used by the /test-config endpoint to verify credentials before use.
+        
+        Returns:
+            Dict containing:
+                - success: bool
+                - message: Status message
+                - model: Model name
+                - api_key_configured: bool
+                - langchain_available: bool
+                - test_response: Sample response text
+                - token_usage: Token metrics from test
         """
         try:
             # Test with a simple prompt
@@ -161,8 +251,33 @@ class GeminiDataFormulator:
     
     def get_text_analysis(self, user_query: str, dataset: pd.DataFrame) -> Dict[str, Any]:
         """
-        Main entry point for AI-powered data analysis
-        Generates Python code and executes it on real dataset
+        Main AI Data Analysis Pipeline
+        Primary entry point for AI-powered data exploration.
+        Orchestrates the complete flow from query to answer.
+        
+        Process Flow:
+            1. Analyze dataset structure (columns, types, samples)
+            2. Generate pandas code using Gemini
+            3. Execute code safely on real dataset
+            4. Format and return results with token usage
+        
+        Args:
+            user_query: Natural language question (e.g., "Which state has the highest revenue?")
+            dataset: Pandas DataFrame to analyze
+        
+        Returns:
+            Dict containing:
+                - success: bool
+                - answer: Text answer to the query
+                - query: Original user query
+                - dataset_info: Dataset metadata
+                - code_steps: List of generated pandas code
+                - reasoning_steps: Execution steps
+                - tabular_data: Extracted table data (if any)
+                - has_table: bool indicating if response contains tabular data
+                - token_usage: Token metrics
+        
+        Used by: /ai-explore endpoint
         """
         try:
             print(f"🤖 AI Analysis for: '{user_query}'")
@@ -207,7 +322,23 @@ class GeminiDataFormulator:
     
     def _analyze_dataset_structure(self, dataset: pd.DataFrame) -> Dict[str, Any]:
         """
-        Analyze dataset structure and create generic examples
+        Dataset Structure Analyzer
+        Analyzes the DataFrame structure and generates context for code generation.
+        Creates generic code examples based on actual column types.
+        
+        Args:
+            dataset: Pandas DataFrame to analyze
+        
+        Returns:
+            Dict containing:
+                - numeric_columns: List of numeric column names
+                - categorical_columns: List of categorical column names
+                - generic_example: Sample pandas code using actual columns
+                - sample_data: First 3 rows as string
+        
+        Purpose:
+            Provides Gemini with concrete examples using the actual dataset structure,
+            helping it generate more accurate and executable code.
         """
         numeric_columns = dataset.select_dtypes(include=[np.number]).columns.tolist()
         categorical_columns = dataset.select_dtypes(include=['object', 'category']).columns.tolist()
@@ -242,8 +373,28 @@ print(result)"""
     
     def _generate_pandas_code(self, user_query: str, dataset: pd.DataFrame) -> tuple[str, dict]:
         """
-        Generate Python pandas code using Gemini
-        Returns: (generated_code, token_usage)
+        Pandas Code Generator
+        Uses Gemini LLM to generate executable pandas code from natural language queries.
+        Provides dataset context to ensure generated code matches actual data structure.
+        
+        Args:
+            user_query: Natural language question about the data
+            dataset: The actual DataFrame to analyze
+        
+        Returns:
+            tuple: (generated_code, token_usage)
+                - generated_code: Clean Python pandas code ready for execution
+                - token_usage: Token metrics from LLM call
+        
+        Prompt Engineering:
+            - Provides full dataset context (shape, columns, dtypes, samples)
+            - Gives concrete examples using actual column names
+            - Enforces constraints (no DataFrame creation, only use 'df' variable)
+            - Requests print statements for clear output
+        
+        Code Cleaning:
+            - Removes markdown formatting (```python ... ```)
+            - Extracts only executable Python code
         """
         try:
             print("🤖 Generating pandas code for real dataset...")
@@ -302,14 +453,41 @@ Generate ONLY the code, no explanations:"""
             print("-" * 50)
             
             return code_lines, token_usage
-            
+                
         except Exception as e:
             print(f"❌ Code generation failed: {str(e)}")
             return "", {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
     
     def _execute_pandas_code(self, code: str, dataset: pd.DataFrame, user_query: str) -> Dict[str, Any]:
         """
-        Execute pandas code on real dataset
+        Safe Code Executor
+        Executes generated pandas code in a sandboxed environment on the real dataset.
+        Captures output and formats results for user display.
+        
+        Args:
+            code: Generated pandas code to execute
+            dataset: The actual DataFrame to analyze
+            user_query: Original user query (for context in response)
+        
+        Returns:
+            Dict containing:
+                - answer: Formatted text answer with results
+                - success: bool indicating execution status
+                - reasoning_steps: Execution status messages
+                - code_steps: The code that was executed
+                - tabular_data: Extracted table rows (if output contains tables)
+                - has_table: bool indicating if response has tabular data
+        
+        Security:
+            - Uses exec() in isolated globals namespace
+            - Only provides df, pd, numpy, and custom print
+            - Captures stdout to prevent console spam
+            - No file system or network access
+        
+        Output Handling:
+            - Redirects print to StringIO for capture
+            - Attempts to parse tabular output (pipes/formatted tables)
+            - Returns human-readable analysis text
         """
         try:
             print("⚡ EXECUTING CODE ON REAL DATASET...")
@@ -365,10 +543,10 @@ Generate ONLY the code, no explanations:"""
             
             return {
                 "answer": analysis_text,
-                "success": True,
+                    "success": True,
                 "reasoning_steps": ["✅ Executed pandas code on REAL uploaded dataset"],
                 "code_steps": [code],  # Show the actual pandas code
-                "tabular_data": tabular_data,
+                    "tabular_data": tabular_data,
                 "has_table": has_table
             }
             
@@ -378,7 +556,7 @@ Generate ONLY the code, no explanations:"""
             
             return {
                 "answer": f"I generated pandas code for your real dataset but encountered an execution error: {error_msg}. The code was: {code}",
-                "success": False, 
+                "success": False,
                 "reasoning_steps": [f"❌ Code execution failed: {str(exec_error)}"],
                 "code_steps": [code],
                 "tabular_data": [],
@@ -387,7 +565,33 @@ Generate ONLY the code, no explanations:"""
     
     def calculate_metric(self, user_query: str, dataset_id: str, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        AI-powered metric calculation using natural language
+        AI Metric Calculator
+        Calculates specific metrics from natural language descriptions.
+        Used by expression nodes to convert text queries into numeric values.
+        
+        Args:
+            user_query: Natural language metric description
+                Examples: "average revenue per state", "total population growth"
+            dataset_id: ID of the dataset (for logging)
+            data: Pandas DataFrame to calculate from
+        
+        Returns:
+            Dict containing:
+                - success: bool
+                - value: Raw calculated value (numeric)
+                - formatted_value: Human-readable formatted string
+                - expression: Pandas expression used (e.g., "df['Revenue'].mean()")
+                - explanation: Brief description of what was calculated
+                - query: Original user query
+                - token_usage: Token metrics
+        
+        Process:
+            1. Ask Gemini to provide metric expression + explanation
+            2. Parse structured response (METRIC_EXPRESSION, CALCULATED_VALUE, EXPLANATION)
+            3. If no value provided, execute expression safely
+            4. Format result with thousands separators and decimals
+        
+        Used by: /ai-calculate-metric endpoint for expression nodes
         """
         try:
             print(f"🧮 AI Metric calculation started:")
@@ -455,7 +659,7 @@ Use the actual data provided above."""
                 else:
                     formatted_value = f"{calculated_value:,.2f}"
             
-            return {
+                    return {
                 "success": True,
                 "value": calculated_value,
                 "formatted_value": formatted_value,
