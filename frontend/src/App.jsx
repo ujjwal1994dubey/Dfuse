@@ -13,6 +13,32 @@ import './tiptap-styles.css';
 const API = 'http://localhost:8000';
 
 /**
+ * Default Chart Colors
+ * Simple, clean color scheme for consistent chart styling
+ */
+const DEFAULT_COLORS = {
+  categorical: ['#2563EB', '#3B82F6', '#60A5FA', '#93C5FD', '#DBEAFE', '#EFF6FF'],
+  quantitative: ['#059669', '#10B981', '#34D399', '#6EE7B7', '#A7F3D0', '#D1FAE5'],
+  comparative: ['#2563EB', '#F97316'],
+  sequential: [
+    [0, '#EFF6FF'], [0.2, '#DBEAFE'], [0.4, '#93C5FD'], 
+    [0.6, '#60A5FA'], [0.8, '#3B82F6'], [1, '#2563EB']
+  ]
+};
+
+/**
+ * Default Layout Configuration
+ */
+const DEFAULT_LAYOUT = {
+  paper_bgcolor: 'transparent',
+  plot_bgcolor: 'transparent',
+  gridcolor: '#E5E7EB',
+  zerolinecolor: '#D1D5DB',
+  font: { family: 'Inter, system-ui, sans-serif', size: 12, color: '#4B5563' },
+  margin: { l: 80, r: 30, t: 40, b: 80 }
+};
+
+/**
  * Chart Types Registry
  * Defines all supported chart types and their capabilities including:
  * - Chart type metadata (id, label, icon)
@@ -35,19 +61,21 @@ const CHART_TYPES = {
           type: 'bar',
           x: data.map(r => r[xKey]),
           y: data.map(r => r[yKey] || 0),
-          marker: { color: '#3182ce' }
+          marker: { color: DEFAULT_COLORS.categorical[0] }
         }],
         layout: {
+          ...DEFAULT_LAYOUT,
           xaxis: {
-            title: { text: xKey, font: { size: 14, color: '#4a5568' } },
-            tickangle: -45
+            title: { text: xKey, font: { size: 12, color: '#4B5563' } },
+            tickangle: -45,
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
           yaxis: {
-            title: { text: yKey || 'Value', font: { size: 14, color: '#4a5568' } }
+            title: { text: yKey || 'Value', font: { size: 12, color: '#4B5563' } },
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
-          margin: { t: 20, b: 80, l: 80, r: 30 },
-          plot_bgcolor: '#fafafa',
-          paper_bgcolor: 'white',
           showlegend: false,
           legend: undefined
         }
@@ -69,14 +97,21 @@ const CHART_TYPES = {
           values: data.map(r => r[valueKey] || 0),
           hole: 0.3,
           marker: {
-            colors: ['#3182ce', '#38a169', '#d69e2e', '#e53e3e', '#805ad5', '#dd6b20', '#38b2ac', '#ed64a6']
+            colors: DEFAULT_COLORS.categorical.slice(0, data.length)
           }
         }],
         layout: {
-          margin: { t: 20, b: 20, l: 20, r: 20 },
-          paper_bgcolor: 'white',
+          ...DEFAULT_LAYOUT,
           showlegend: true,
-          legend: { orientation: 'v', x: 1.05, y: 0.5 }
+          legend: { 
+            bgcolor: 'rgba(255,255,255,0.9)',
+            bordercolor: '#E5E7EB',
+            borderwidth: 1,
+            font: { size: 11, color: '#6B7280' },
+            orientation: 'v', 
+            x: 1.05, 
+            y: 0.5 
+          }
         }
       };
     }
@@ -99,7 +134,7 @@ const CHART_TYPES = {
           text: data.map(r => r[labelKey]),
           marker: { 
             size: 10, 
-            color: '#3182ce',
+            color: DEFAULT_COLORS.quantitative[0],
             opacity: 0.7,
             line: { color: 'white', width: 1 }
           },
@@ -109,15 +144,17 @@ const CHART_TYPES = {
                          '<extra></extra>'
         }],
         layout: {
+          ...DEFAULT_LAYOUT,
           xaxis: {
-            title: { text: xKey, font: { size: 14, color: '#4a5568' } }
+            title: { text: xKey, font: { size: 12, color: '#4B5563' } },
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
           yaxis: {
-            title: { text: yKey, font: { size: 14, color: '#4a5568' } }
-          },
-          margin: { t: 20, b: 60, l: 80, r: 30 },
-          plot_bgcolor: '#fafafa',
-          paper_bgcolor: 'white'
+            title: { text: yKey, font: { size: 12, color: '#4B5563' } },
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
+          }
         }
       };
     }
@@ -139,46 +176,34 @@ const CHART_TYPES = {
           name: truncateLabel(measure), // Truncate long legend labels
           x: xValues,
           y: xValues.map(v => (data.find(r => r[xKey] === v)?.[measure]) ?? 0),
-          marker: { color: ['#3182ce', '#38a169', '#d69e2e'][i] }
+          marker: { color: DEFAULT_COLORS.comparative[i % DEFAULT_COLORS.comparative.length] }
         })),
         layout: {
+          ...DEFAULT_LAYOUT,
           barmode: 'group',
           xaxis: {
-            title: { text: xKey, font: { size: 14, color: '#4a5568' } },
-            tickangle: -45
+            title: { text: xKey, font: { size: 12, color: '#4B5563' } },
+            tickangle: -45,
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
           yaxis: {
-            title: { text: 'Value', font: { size: 14, color: '#4a5568' } }
+            title: { text: 'Value', font: { size: 12, color: '#4B5563' } },
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
-          margin: { t: 20, b: 140, l: 80, r: 30 }, // Keep normal right margin
-          plot_bgcolor: '#fafafa',
-          paper_bgcolor: 'white',
+          margin: { ...DEFAULT_LAYOUT.margin, b: 140 }, // Keep bottom margin for legend
           showlegend: measureKeys.length > 1,
           legend: measureKeys.length > 1 ? {
+            bgcolor: 'rgba(255,255,255,0.9)',
+            bordercolor: '#E5E7EB',
+            borderwidth: 1,
+            font: { size: 11, color: '#6B7280' },
             orientation: 'h',
             x: 0.5,
             xanchor: 'center',
-            y: -0.3, // Moved further down to avoid overlap
-            yanchor: 'top',
-            bgcolor: 'rgba(255,255,255,0.8)',
-            bordercolor: '#E2E8F0',
-            borderwidth: 1,
-            font: { size: 11 },
-            tracegroupgap: 5, // Add gap between legend groups
-            itemsizing: 'constant',
-            itemwidth: 30,
-            // Add responsive behavior for many legend items  
-            ...(measureKeys.length > 8 ? {
-              orientation: 'v', // Switch to vertical for many items
-              x: 1.05, // Closer to chart to avoid excessive gap
-              xanchor: 'left',
-              y: 0.5,
-              yanchor: 'middle',
-              itemwidth: 30, // Reduced item width
-              font: { size: 10 }, // Smaller font
-              borderwidth: 0, // Remove border to save space
-              tracegroupgap: 2 // Reduced gap between items
-            } : {})
+            y: -0.3,
+            yanchor: 'top'
           } : undefined
         }
       };
@@ -381,34 +406,43 @@ const CHART_TYPES = {
           marker: {
             size: validData.map(r => Math.max(8, Math.sqrt(r[measure] / maxValue * 2000) + 5)),
             color: validData.map(r => r[measure]),
-            colorscale: [
-              [0, '#e6f3ff'], [0.3, '#66c2ff'], [0.6, '#1a8cff'], [1, '#003d80']
-            ],
+            colorscale: DEFAULT_COLORS.sequential,
             colorbar: { 
-              title: { text: measure, side: 'right' },
-              thickness: 15
+              title: { 
+                text: measure, 
+                side: 'right',
+                font: { color: '#4B5563' }
+              },
+              thickness: 15,
+              tickfont: { color: '#4B5563' }
             },
             opacity: 0.8,
-            line: { color: 'white', width: 2 }
+            line: { 
+              color: 'white', 
+              width: 2 
+            }
           },
           hovertemplate: '%{text}<extra></extra>'
         }],
-        layout: sanitizeLayout({
+        layout: {
+          ...DEFAULT_LAYOUT,
           xaxis: {
-            title: { text: dim2, font: { size: 14, color: '#4a5568' } },
+            title: { text: dim2, font: { size: 12, color: '#4B5563' } },
             type: 'category',
-            tickangle: -45
+            tickangle: -45,
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
           yaxis: {
-            title: { text: dim1, font: { size: 14, color: '#4a5568' } },
-            type: 'category'
+            title: { text: dim1, font: { size: 12, color: '#4B5563' } },
+            type: 'category',
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
-          margin: { t: 20, b: 80, l: 100, r: 120 },
-          plot_bgcolor: '#fafafa',
-          paper_bgcolor: 'white',
+          margin: { ...DEFAULT_LAYOUT.margin, l: 100, r: 120 },
           showlegend: false,
           legend: undefined
-        })
+        }
       };
     }
   },
@@ -420,26 +454,29 @@ const CHART_TYPES = {
     createFigure: (data, payload) => {
       const xKey = payload.dimensions[0];
       const yKey = payload.measures[0];
+      const lineColor = DEFAULT_COLORS.quantitative[0];
       return {
         data: [{
           type: 'scatter',
           mode: 'lines+markers',
           x: data.map(r => r[xKey]),
           y: data.map(r => r[yKey] || 0),
-          line: { color: '#3182ce', width: 3 },
-          marker: { color: '#3182ce', size: 6 }
+          line: { color: lineColor, width: 3 },
+          marker: { color: lineColor, size: 6 }
         }],
         layout: {
+          ...DEFAULT_LAYOUT,
           xaxis: {
-            title: { text: xKey, font: { size: 14, color: '#4a5568' } },
-            tickangle: -45
+            title: { text: xKey, font: { size: 12, color: '#4B5563' } },
+            tickangle: -45,
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
           yaxis: {
-            title: { text: yKey || 'Value', font: { size: 14, color: '#4a5568' } }
+            title: { text: yKey || 'Value', font: { size: 12, color: '#4B5563' } },
+            gridcolor: DEFAULT_LAYOUT.gridcolor,
+            zerolinecolor: DEFAULT_LAYOUT.zerolinecolor
           },
-          margin: { t: 20, b: 80, l: 80, r: 30 },
-          plot_bgcolor: '#fafafa',
-          paper_bgcolor: 'white',
           showlegend: false,
           legend: undefined
         }
@@ -473,30 +510,43 @@ const sanitizeLayout = (layout) => {
   // Safety check for null/undefined layout
   if (!layout || typeof layout !== 'object') {
     return {
+      ...DEFAULT_LAYOUT,
       title: { text: 'Chart' },
-      margin: { t: 50, b: 60, l: 60, r: 30 },
       showlegend: false
     };
   }
   
   const currentMargin = layout.margin || {};
   return {
+    ...DEFAULT_LAYOUT,
     ...layout,
-    // Ensure legend is always properly defined
+    // Ensure legend is always properly defined with default colors
     showlegend: layout.showlegend !== undefined ? layout.showlegend : false,
     legend: layout.showlegend && layout.legend ? {
-      ...layout.legend,
-      bgcolor: layout.legend.bgcolor || 'rgba(255,255,255,0.8)',
-      bordercolor: layout.legend.bordercolor || '#E2E8F0',
-      borderwidth: layout.legend.borderwidth || 1
+      bgcolor: 'rgba(255,255,255,0.9)',
+      bordercolor: '#E5E7EB',
+      borderwidth: 1,
+      font: { size: 11, color: '#6B7280' },
+      ...layout.legend
     } : undefined,
+    // Apply default axis styling if not explicitly set
+    xaxis: {
+      gridcolor: DEFAULT_LAYOUT.gridcolor,
+      zerolinecolor: DEFAULT_LAYOUT.zerolinecolor,
+      ...layout.xaxis
+    },
+    yaxis: {
+      gridcolor: DEFAULT_LAYOUT.gridcolor,
+      zerolinecolor: DEFAULT_LAYOUT.zerolinecolor,
+      ...layout.yaxis
+    },
     // Ensure sufficient top margin for modebar (minimum 50px)
     // Preserve existing margins (especially bottom and right margins for legends)
     margin: {
-      t: Math.max(currentMargin.t || 20, 50),
-      b: Math.max(currentMargin.b || 60, currentMargin.b), // Preserve larger bottom margins for legends
-      l: currentMargin.l || 60, 
-      r: Math.max(currentMargin.r || 30, currentMargin.r), // Preserve larger right margins for vertical legends
+      t: Math.max(currentMargin.t || DEFAULT_LAYOUT.margin.t || 40, 50),
+      b: Math.max(currentMargin.b || DEFAULT_LAYOUT.margin.b || 80, currentMargin.b), 
+      l: currentMargin.l || DEFAULT_LAYOUT.margin.l || 80, 
+      r: Math.max(currentMargin.r || DEFAULT_LAYOUT.margin.r || 30, currentMargin.r), 
       ...currentMargin
     }
   };
@@ -1695,7 +1745,7 @@ function ChartTypeSelector({ dimensions = [], measures = [], currentType, onType
   if (supportedTypes.length <= 1) return null;
   
   return (
-    <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+    <div className="flex gap-1 bg-white rounded-lg p-1 border border-gray-200">
       {supportedTypes.map(type => {
         const IconComponent = type.icon;
         const isActive = currentType === type.id;
@@ -2379,7 +2429,7 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
             }
           }}
           config={{
-            displayModeBar: true,
+            displayModeBar: selected, // Only show when chart is selected
             displaylogo: false,
             modeBarButtons: [
               [
@@ -2399,6 +2449,8 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
               'sendDataToCloud',
               'editInChartStudio'
             ],
+            // Position modebar outside chart area
+            modeBarButtonsToAdd: [],
             toImageButtonOptions: {
               format: 'png',
               filename: title?.replace(/[^a-z0-9]/gi, '_') || 'chart',
@@ -2833,6 +2885,188 @@ function InsightStickyNote({
   );
 }
 
+/* === DESIGN SYSTEM COMPONENTS === */
+
+/**
+ * Standardized Button Component
+ * Base button component following the design system with consistent variants and states
+ * 
+ * @param {string} variant - Button style variant: 'primary', 'secondary', 'ghost', 'icon'
+ * @param {string} size - Button size: 'sm', 'md', 'lg'
+ * @param {boolean} active - Whether button is in active/selected state
+ * @param {boolean} disabled - Whether button is disabled
+ * @param {ReactNode} children - Button content
+ * @param {Function} onClick - Click handler
+ * @param {string} className - Additional CSS classes
+ * @param {object} props - Additional props passed to button element
+ */
+function DesignButton({ 
+  variant = 'secondary', 
+  size = 'md', 
+  active = false, 
+  disabled = false, 
+  children, 
+  onClick, 
+  className = '',
+  ...props 
+}) {
+  const baseClasses = 'btn-base';
+  const sizeClasses = {
+    sm: 'btn-sm',
+    md: 'btn-md', 
+    lg: 'btn-lg'
+  };
+  const variantClasses = {
+    primary: 'btn-primary',
+    secondary: 'btn-secondary',
+    ghost: 'btn-ghost',
+    icon: 'btn-icon'
+  };
+  
+  const classes = [
+    baseClasses,
+    sizeClasses[size],
+    variantClasses[variant],
+    active ? 'btn-toggle active' : '',
+    className
+  ].filter(Boolean).join(' ');
+
+  return (
+    <button
+      className={classes}
+      onClick={onClick}
+      disabled={disabled}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Icon Button with Badge
+ * Specialized icon button with optional badge support for notifications
+ * 
+ * @param {ReactComponent} icon - Icon component to render
+ * @param {string|number} badge - Badge content (numbers, text)
+ * @param {boolean} active - Whether button is active
+ * @param {boolean} disabled - Whether button is disabled
+ * @param {Function} onClick - Click handler
+ * @param {string} label - Tooltip/accessibility label
+ * @param {string} size - Button size: 'sm', 'md', 'lg'
+ */
+function IconButton({ 
+  icon: Icon, 
+  badge, 
+  active = false, 
+  disabled = false, 
+  onClick, 
+  label, 
+  size = 'md',
+  className = ''
+}) {
+  const iconSizes = {
+    sm: 16,
+    md: 20,
+    lg: 24
+  };
+
+  return (
+    <DesignButton
+      variant="icon"
+      size={size}
+      active={active}
+      disabled={disabled}
+      onClick={onClick}
+      title={label}
+      className={`relative ${className}`}
+    >
+      <Icon size={iconSizes[size]} />
+      {badge && badge > 0 && (
+        <span className="badge">
+          {badge}
+        </span>
+      )}
+    </DesignButton>
+  );
+}
+
+/**
+ * Panel Component Base
+ * Standardized panel architecture with size variants and animations
+ * 
+ * @param {boolean} isOpen - Whether panel is visible
+ * @param {string} size - Panel size: 'sm', 'md', 'lg'
+ * @param {string} position - Panel position: 'left', 'right'
+ * @param {ReactNode} children - Panel content
+ * @param {string} className - Additional CSS classes
+ */
+function Panel({ 
+  isOpen = false, 
+  size = 'md', 
+  position = 'left', 
+  children, 
+  className = '' 
+}) {
+  const sizeClasses = {
+    sm: 'panel-sm',
+    md: 'panel-md', 
+    lg: 'panel-lg'
+  };
+  
+  const positionClasses = {
+    left: isOpen ? 'panel-slide-enter-active' : 'panel-slide-exit-active',
+    right: isOpen ? 'translate-x-0' : 'translate-x-full'
+  };
+
+  const classes = [
+    'panel-base',
+    sizeClasses[size],
+    'flex flex-col overflow-hidden transition-all duration-300',
+    isOpen ? 'opacity-100' : 'opacity-0 w-0',
+    className
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={classes}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Modal Overlay Component
+ * Standardized modal with backdrop and focus management
+ * 
+ * @param {boolean} isOpen - Whether modal is visible
+ * @param {Function} onClose - Close callback
+ * @param {ReactNode} children - Modal content
+ * @param {string} size - Modal size: 'sm', 'md', 'lg'
+ */
+function Modal({ isOpen = false, onClose, children, size = 'md' }) {
+  if (!isOpen) return null;
+
+  const sizeClasses = {
+    sm: 'max-w-md',
+    md: 'max-w-lg', 
+    lg: 'max-w-2xl'
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div 
+        className={`bg-white rounded-lg shadow-lg p-6 m-4 ${sizeClasses[size]} mx-auto mt-20`}
+        onClick={(e) => e.stopPropagation()}
+        style={{ zIndex: 1050 }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* === END DESIGN SYSTEM COMPONENTS === */
+
 /**
  * UnifiedSidebar Component
  * Left-side vertical toolbar that provides access to all main tools and actions.
@@ -2868,10 +3102,10 @@ function UnifiedSidebar({
     { 
       id: 'upload', 
       icon: Upload, 
-      label: 'Upload', 
+      label: 'Upload Data', 
       onClick: () => {
         setUploadPanelOpen(!uploadPanelOpen);
-        if (!uploadPanelOpen) setVariablesPanelOpen(false); // Close variables panel when opening upload
+        if (!uploadPanelOpen) setVariablesPanelOpen(false);
       }, 
       active: uploadPanelOpen 
     },
@@ -2881,131 +3115,172 @@ function UnifiedSidebar({
       label: 'Variables', 
       onClick: () => {
         setVariablesPanelOpen(!variablesPanelOpen);
-        if (!variablesPanelOpen) setUploadPanelOpen(false); // Close upload panel when opening variables
+        if (!variablesPanelOpen) setUploadPanelOpen(false);
       }, 
       active: variablesPanelOpen 
     },
   ];
   
   const toolButtons = [
-    { id: 'select', icon: MousePointer2, label: 'Select', tool: true },
-    { id: 'arrow', icon: ArrowRight, label: 'Arrow', tool: true },
-    { id: 'textbox', icon: Type, label: 'Text', tool: true },
-    { id: 'expression', icon: Calculator, label: 'Expression', tool: true },
+    { id: 'select', icon: MousePointer2, label: 'Select Tool' },
+    { id: 'arrow', icon: ArrowRight, label: 'Arrow Tool' },
+    { id: 'textbox', icon: Type, label: 'Text Tool' },
+    { id: 'expression', icon: Calculator, label: 'Expression Tool' },
   ];
   
   const actionButtons = [
-    { id: 'merge', icon: Merge, label: 'Merge', onClick: onMergeCharts, disabled: !canMerge, badge: selectedChartsCount },
-    { id: 'arrange', icon: GitBranch, label: 'Arrange', onClick: onAutoLayout },
+    { 
+      id: 'merge', 
+      icon: Merge, 
+      label: 'Merge Charts', 
+      onClick: onMergeCharts, 
+      disabled: !canMerge
+    },
+    { 
+      id: 'arrange', 
+      icon: GitBranch, 
+      label: 'Auto Arrange', 
+      onClick: onAutoLayout 
+    },
   ];
   
   return (
-    <div className="w-[60px] bg-white border-r border-gray-300 flex flex-col items-center py-4 gap-2">
+    <div 
+      className="flex flex-col items-center py-6 gap-3"
+      style={{ 
+        width: 'var(--size-sidebar)', 
+        backgroundColor: 'var(--color-surface-elevated)',
+        borderRight: '1px solid var(--color-border)'
+      }}
+    >
       {/* Logo */}
       <div className="mb-4">
-        <SquaresExclude size={32} className="text-blue-600" />
+        <SquaresExclude size={32} className="text-primary" />
       </div>
       
       {/* Toggle Buttons */}
-      {toggleButtons.map(btn => (
-        <button
-          key={btn.id}
-          onClick={btn.onClick}
-          className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all ${
-            btn.active 
-              ? 'bg-blue-100 text-blue-600' 
-              : 'hover:bg-gray-100 text-gray-600'
-          }`}
-          title={btn.label}
-        >
-          <btn.icon size={20} />
-        </button>
-      ))}
+      <div className="flex flex-col gap-2">
+        {toggleButtons.map(btn => (
+          <IconButton
+            key={btn.id}
+            icon={btn.icon}
+            active={btn.active}
+            onClick={btn.onClick}
+            label={btn.label}
+            size="md"
+          />
+        ))}
+      </div>
       
       {/* Separator */}
-      <div className="w-8 h-px bg-gray-300 my-2" />
+      <div 
+        className="my-2"
+        style={{
+          width: '32px',
+          height: '1px',
+          backgroundColor: 'var(--color-border)'
+        }}
+      />
       
       {/* Tool Buttons */}
-      {toolButtons.map(btn => (
-        <button
-          key={btn.id}
-          onClick={() => {
-            // Toggle functionality: if already active, switch to select; otherwise activate the tool
-            if (activeTool === btn.id) {
-              onToolChange('select');
-            } else {
-              onToolChange(btn.id);
-            }
-          }}
-          className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all ${
-            activeTool === btn.id 
-              ? 'bg-blue-100 text-blue-600 shadow-inner' 
-              : 'hover:bg-gray-100 text-gray-600'
-          }`}
-          title={btn.label}
-        >
-          <btn.icon size={20} />
-        </button>
-      ))}
+      <div className="flex flex-col gap-2">
+        {toolButtons.map(btn => (
+          <IconButton
+            key={btn.id}
+            icon={btn.icon}
+            active={activeTool === btn.id}
+            onClick={() => {
+              if (activeTool === btn.id) {
+                onToolChange('select');
+              } else {
+                onToolChange(btn.id);
+              }
+            }}
+            label={btn.label}
+            size="md"
+          />
+        ))}
+      </div>
       
       {/* Separator */}
-      <div className="w-8 h-px bg-gray-300 my-2" />
+      <div 
+        className="my-2"
+        style={{
+          width: '32px',
+          height: '1px',
+          backgroundColor: 'var(--color-border)'
+        }}
+      />
       
       {/* Action Buttons */}
-      {actionButtons.map(btn => (
-        <button
-          key={btn.id}
-          onClick={btn.onClick}
-          disabled={btn.disabled}
-          className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all relative ${
-            btn.disabled 
-              ? 'text-gray-300 cursor-not-allowed' 
-              : 'hover:bg-gray-100 text-gray-600'
-          }`}
-          title={btn.label}
-        >
-          <btn.icon size={20} />
-          {btn.badge > 0 && (
-            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              {btn.badge}
-            </span>
-          )}
-        </button>
-      ))}
+      <div className="flex flex-col gap-2">
+        {actionButtons.map(btn => (
+          <IconButton
+            key={btn.id}
+            icon={btn.icon}
+            disabled={btn.disabled}
+            onClick={btn.onClick}
+            label={btn.label}
+            badge={btn.badge}
+            size="md"
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 /**
  * SlidingPanel Component
- * Reusable collapsible side panel that slides in from the left.
- * Used for upload and variable selection interfaces.
+ * Enhanced collapsible side panel using the design system.
+ * Features smooth animations, size variants, and consistent styling.
  * 
  * @param {boolean} isOpen - Whether panel is currently visible
  * @param {string} title - Header title text
  * @param {ReactNode} children - Content to display inside panel
  * @param {Function} onClose - Callback when panel is closed
+ * @param {string} size - Panel size variant: 'sm', 'md', 'lg'
  */
-function SlidingPanel({ isOpen, title, children, onClose }) {
+function SlidingPanel({ isOpen, title, children, onClose, size = 'md' }) {
   return (
-    <div 
-      className={`bg-white border-r border-gray-300 transition-all duration-300 overflow-hidden flex flex-col
-        ${isOpen ? 'w-80' : 'w-0'}`}
-    >
+    <Panel isOpen={isOpen} size={size} position="left" className="border-r">
       {isOpen && (
         <>
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <Button onClick={onClose} variant="ghost" size="sm">
-              <X className="w-4 h-4" />
-            </Button>
+          {/* Panel Header */}
+          <div 
+            className="flex items-center justify-between p-4"
+            style={{ 
+              borderBottom: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-surface)'
+            }}
+          >
+            <h2 
+              className="font-semibold"
+              style={{ 
+                fontSize: 'var(--font-size-lg)',
+                color: 'var(--color-text)'
+              }}
+            >
+              {title}
+            </h2>
+            <IconButton
+              icon={X}
+              onClick={onClose}
+              size="sm"
+              label="Close Panel"
+            />
           </div>
-          <div className="flex-1 overflow-y-auto">
+          
+          {/* Panel Content */}
+          <div 
+            className="flex-1 overflow-y-auto"
+            style={{ backgroundColor: 'var(--color-bg)' }}
+          >
             {children}
           </div>
         </>
       )}
-    </div>
+    </Panel>
   );
 }
 
@@ -3172,71 +3447,119 @@ function ReportPanel({ isOpen, onClose, reportItems, onUpdateItems }) {
 
   return (
     <div 
-      className={`bg-white border-l border-gray-300 transition-all duration-300 overflow-hidden flex flex-col
-        ${isOpen ? 'w-[500px]' : 'w-0'}`}
+      className="h-full flex flex-col panel-base"
+      style={{
+        backgroundColor: 'var(--color-surface-elevated)',
+        borderLeft: '1px solid var(--color-border)'
+      }}
     >
-      {isOpen && (
-        <>
-          {/* Header - Hidden in print */}
-          <div className="flex items-center justify-between p-4 border-b print:hidden">
-            <h2 className="text-lg font-semibold">Report</h2>
-            <div className="flex gap-2">
-              <Button 
-                onClick={handlePrint} 
-                variant="ghost" 
-                size="sm"
-                title="Export as PDF"
-              >
-                <Download size={16} />
-              </Button>
-              <Button onClick={onClose} variant="ghost" size="sm">
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-          
-          {/* Report Content */}
-          <div id="report-content" className="flex-1 overflow-y-auto p-4 space-y-4 print:p-8">
-            {reportItems.map((item) => (
-              <ReportItem
-                key={item.id}
-                item={item}
-                onRemove={() => handleRemoveItem(item.id)}
-                onUpdate={handleUpdateItem}
-              />
-            ))}
-          </div>
+      {/* Panel Header - Hidden in print */}
+      <div 
+        className="flex items-center justify-between p-4 print:hidden"
+        style={{ 
+          borderBottom: '1px solid var(--color-border)',
+          backgroundColor: 'var(--color-surface)'
+        }}
+      >
+        <h2 
+          className="font-semibold"
+          style={{ 
+            fontSize: 'var(--font-size-lg)',
+            color: 'var(--color-text)'
+          }}
+        >
+          Report
+        </h2>
+        <div className="flex gap-2">
+          <IconButton
+            icon={Download}
+            onClick={handlePrint}
+            size="sm"
+            label="Export as PDF"
+          />
+          <IconButton
+            icon={X}
+            onClick={onClose}
+            size="sm"
+            label="Close Report"
+          />
+        </div>
+      </div>
+      
+      {/* Report Content */}
+      <div 
+        id="report-content" 
+        className="flex-1 overflow-y-auto p-4 space-y-4 print:p-8"
+        style={{ backgroundColor: 'var(--color-bg)' }}
+      >
+        {/* Heading and Subheading Inputs */}
+        <div 
+          className="space-y-3 pb-4 print:border-0"
+          style={{ borderBottom: '1px solid var(--color-border)' }}
+        >
+          <input
+            type="text"
+            placeholder="Heading"
+            className="w-full font-bold border-0 shadow-none px-0 bg-transparent focus:ring-0 focus:outline-none"
+            style={{ 
+              fontSize: 'var(--font-size-2xl)',
+              color: 'var(--color-text)',
+              '::placeholder': { color: 'var(--color-text-muted)' }
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Subheading"
+            className="w-full font-medium border-0 shadow-none px-0 bg-transparent focus:ring-0 focus:outline-none"
+            style={{ 
+              fontSize: 'var(--font-size-lg)',
+              color: 'var(--color-text)',
+              '::placeholder': { color: 'var(--color-text-muted)' }
+            }}
+          />
+        </div>
+        
+        {reportItems.map((item) => (
+          <ReportItem
+            key={item.id}
+            item={item}
+            onRemove={() => handleRemoveItem(item.id)}
+            onUpdate={handleUpdateItem}
+          />
+        ))}
+      </div>
 
-          {/* Add Buttons - Hidden in print */}
-          <div className="p-4 border-t flex gap-2 print:hidden">
-            <Button 
-              onClick={handleAddText}
-              variant="outline"
-              size="sm"
-              className="flex-1"
-            >
-              <Type size={16} className="mr-2" />
-              Add Text
-            </Button>
-            <Button 
-              onClick={handleAddImage}
-              variant="outline"
-              size="sm"
-              className="flex-1"
-            >
-              <Upload size={16} className="mr-2" />
-              Add Image
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-          </div>
-        </>
-      )}
+      {/* Add Buttons - Hidden in print */}
+      <div 
+        className="p-4 flex gap-2 print:hidden"
+        style={{ borderTop: '1px solid var(--color-border)' }}
+      >
+        <DesignButton 
+          onClick={handleAddText}
+          variant="secondary"
+          size="md"
+          className="flex-1 gap-2"
+        >
+          <Type size={16} />
+          Add Text
+        </DesignButton>
+        <DesignButton 
+          onClick={handleAddImage}
+          variant="secondary"
+          size="md"
+          className="flex-1 gap-2"
+        >
+          <Upload size={16} />
+          Add Image
+        </DesignButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageUpload}
+          className="hidden"
+        />
+      </div>
     </div>
   );
 }
@@ -3314,7 +3637,6 @@ function ReactFlowWrapper() {
   const [arrowStart, setArrowStart] = useState(null);
   const [nodeIdCounter, setNodeIdCounter] = useState(1000);
 
-  
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
   
@@ -4638,7 +4960,7 @@ function ReactFlowWrapper() {
     }
   }, [nodes, edges]);
 
-  // Settings panel component - memoized to prevent re-creation on every render
+  // Settings panel component - now using Modal from design system
   const SettingsPanel = React.memo(() => {
     const handleTestConfiguration = async () => {
       if (!apiKey.trim()) {
@@ -4669,9 +4991,8 @@ function ReactFlowWrapper() {
           setConfigMessage('Configuration successful! LLM is ready to use.');
           localStorage.setItem('gemini_api_key', apiKey);
           localStorage.setItem('gemini_model', selectedModel);
-          setIsConfigLocked(true); // Lock the configuration after success
+          setIsConfigLocked(true);
           
-          // Track the test token usage
           if (result.token_usage) {
             updateTokenUsage(result.token_usage);
           }
@@ -4692,48 +5013,79 @@ function ReactFlowWrapper() {
     };
 
     return (
-      <div className="absolute top-12 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-80 z-50">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-            <Settings size={18} />
+      <Modal 
+        isOpen={true} 
+        onClose={() => setShowSettings(false)}
+        size="md"
+      >
+        {/* Modal Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 
+            className="font-semibold flex items-center gap-2"
+            style={{ 
+              fontSize: 'var(--font-size-xl)',
+              color: 'var(--color-text)'
+            }}
+          >
+            <Settings size={20} />
             AI Settings
           </h3>
-          <Button
-            variant="ghost"
-            size="sm"
+          <IconButton
+            icon={X}
             onClick={() => setShowSettings(false)}
-            className="h-6 w-6 p-0"
-          >
-            <X size={14} />
-          </Button>
+            size="sm"
+            label="Close Settings"
+          />
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {/* API Key Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label 
+              className="block font-medium mb-2"
+              style={{ 
+                fontSize: 'var(--font-size-sm)',
+                color: 'var(--color-text)'
+              }}
+            >
               Gemini API Key
             </label>
             <div className="relative">
-              <Input
+              <input
                 type={showApiKey ? "text" : "password"}
                 placeholder="Enter your Gemini API key"
                 value={apiKey}
                 onChange={handleApiKeyChange}
                 disabled={isConfigLocked}
-                className={`w-full pr-10 ${isConfigLocked ? 'bg-gray-50 text-gray-500' : ''}`}
+                className={`input-base pr-12 ${isConfigLocked ? 'opacity-60' : ''}`}
               />
               <button
                 type="button"
                 onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded transition-colors"
+                style={{ 
+                  color: 'var(--color-text-muted)',
+                  ':hover': { color: 'var(--color-text-secondary)' }
+                }}
               >
                 {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p 
+              className="mt-2"
+              style={{ 
+                fontSize: 'var(--font-size-xs)',
+                color: 'var(--color-text-muted)'
+              }}
+            >
               Get your free API key from{' '}
-              <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+              <a 
+                href="https://makersuite.google.com/app/apikey" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="underline"
+                style={{ color: 'var(--color-primary)' }}
+              >
                 Google AI Studio
               </a>
             </p>
@@ -4741,14 +5093,26 @@ function ReactFlowWrapper() {
 
           {/* Model Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label 
+              className="block font-medium mb-2"
+              style={{ 
+                fontSize: 'var(--font-size-sm)',
+                color: 'var(--color-text)'
+              }}
+            >
               Model Selection
             </label>
             <Select value={selectedModel} onValueChange={setSelectedModel} disabled={isConfigLocked}>
-              <SelectTrigger className={`w-full ${isConfigLocked ? 'bg-gray-50 text-gray-500' : ''}`}>
+              <SelectTrigger className={`w-full ${isConfigLocked ? 'opacity-60' : ''}`}>
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent 
+                position="popper"
+                side="bottom"
+                align="start"
+                sideOffset={5}
+                style={{ zIndex: 9999 }}
+              >
                 <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
                 <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
                 <SelectItem value="gemini-2.0-flash-exp">Gemini 2.0 Flash Experimental</SelectItem>
@@ -4757,14 +5121,16 @@ function ReactFlowWrapper() {
           </div>
 
           {/* Test/Edit Configuration Button */}
-          <Button 
-            onClick={isConfigLocked ? handleEditConfiguration : handleTestConfiguration} 
-            className={`w-full gap-2 ${isConfigLocked ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+          <DesignButton 
+            variant={isConfigLocked ? "secondary" : "primary"}
+            size="md"
+            onClick={isConfigLocked ? handleEditConfiguration : handleTestConfiguration}
             disabled={configStatus === 'testing'}
+            className="w-full gap-2"
           >
             {configStatus === 'testing' ? (
               <>
-                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
                 Testing...
               </>
             ) : isConfigLocked ? (
@@ -4778,26 +5144,56 @@ function ReactFlowWrapper() {
                 Test Configuration
               </>
             )}
-          </Button>
+          </DesignButton>
 
           {/* Status Message */}
           {configMessage && (
-            <div className={`p-3 rounded-md text-sm break-words whitespace-normal leading-relaxed ${
-              configStatus === 'success' 
-                ? 'bg-green-50 text-green-800 border border-green-200' 
-                : configStatus === 'error'
-                ? 'bg-red-50 text-red-800 border border-red-200'
-                : 'bg-blue-50 text-blue-800 border border-blue-200'
-            }`}>
+            <div 
+              className="p-4 rounded-lg text-sm break-words whitespace-normal leading-relaxed border"
+              style={{
+                backgroundColor: configStatus === 'success' 
+                  ? 'var(--color-success-light)' 
+                  : configStatus === 'error'
+                  ? 'var(--color-error-light)'
+                  : 'var(--color-info-light)',
+                color: configStatus === 'success' 
+                  ? 'var(--color-success)' 
+                  : configStatus === 'error'
+                  ? 'var(--color-error)'
+                  : 'var(--color-info)',
+                borderColor: configStatus === 'success' 
+                  ? 'var(--color-success)' 
+                  : configStatus === 'error'
+                  ? 'var(--color-error)'
+                  : 'var(--color-info)'
+              }}
+            >
               {configMessage}
             </div>
           )}
 
           {/* Token Usage Display */}
           {tokenUsage.totalTokens > 0 && (
-            <div className="border-t pt-4 mt-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Token Usage (This Session)</h4>
-              <div className="space-y-1 text-xs text-gray-600">
+            <div 
+              className="pt-4 mt-4"
+              style={{ borderTop: '1px solid var(--color-border)' }}
+            >
+              <h4 
+                className="font-medium mb-3"
+                style={{ 
+                  fontSize: 'var(--font-size-sm)',
+                  color: 'var(--color-text)'
+                }}
+              >
+                Token Usage (This Session)
+              </h4>
+              <div 
+                className="space-y-2"
+                style={{ 
+                  fontSize: 'var(--font-size-xs)',
+                  color: 'var(--color-text-secondary)'
+                }}
+              >
                 <div className="flex justify-between">
                   <span>Input Tokens:</span>
                   <span>{tokenUsage.inputTokens.toLocaleString()}</span>
@@ -4806,11 +5202,11 @@ function ReactFlowWrapper() {
                   <span>Output Tokens:</span>
                   <span>{tokenUsage.outputTokens.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between font-medium">
+                <div className="flex justify-between font-medium pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
                   <span>Total Tokens:</span>
                   <span>{tokenUsage.totalTokens.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-green-600 font-medium">
+                <div className="flex justify-between font-medium" style={{ color: 'var(--color-success)' }}>
                   <span>Est. Cost:</span>
                   <span>${tokenUsage.estimatedCost.toFixed(4)}</span>
                 </div>
@@ -4818,7 +5214,7 @@ function ReactFlowWrapper() {
             </div>
           )}
         </div>
-      </div>
+      </Modal>
     );
   });
 
@@ -4838,200 +5234,231 @@ function ReactFlowWrapper() {
         canMerge={selectedCharts.length === 2}
       />
       
-      {/* Upload Panel */}
-      <SlidingPanel 
-        isOpen={uploadPanelOpen} 
-        title="Upload Data"
-        onClose={() => setUploadPanelOpen(false)}
-      >
-        <div className="p-4">
-          <div className="space-y-3">
-            <div className="pt-2">
-              <FileUpload 
-                accept=".csv" 
-                onFileChange={(file) => uploadCSV(file)}
-              >
-                {datasetId ? 'Replace CSV' : 'Choose CSV File'}
-              </FileUpload>
-              
-              {(csvFileName || datasetId) && (
-                <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-gray-50/30">
-                  {csvFileName && (
-                    <div className="text-sm text-gray-600 flex items-center gap-2 mb-2">
-                      <File size={16} />
-                      {csvFileName}
-                    </div>
-                  )}
-                  
-                  {datasetId && (
-                    <>
-                      <Badge variant="outline" className="w-fit mb-2">
-                        Dataset: {datasetId.substring(0, 8)}...
-                      </Badge>
-                      <div className="flex gap-1 flex-wrap">
-                        <Badge variant="secondary" className="text-xs">
-                          {availableDimensions.length} dimensions
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {availableMeasures.length} measures
-                        </Badge>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </SlidingPanel>
-      
-      {/* Variables Panel */}
-      <SlidingPanel 
-        isOpen={variablesPanelOpen} 
-        title="Select Variables"
-        onClose={() => setVariablesPanelOpen(false)}
-      >
-        <div className="p-4">
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium">Dimensions</h3>
-              </div>
-              <RadioGroup
-                options={availableDimensions}
-                value={selectedDimension}
-                onChange={setSelectedDimension}
-                name="dimensions"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium">Measures</h3>
-              </div>
-              <RadioGroup
-                options={availableMeasures}
-                value={selectedMeasure}
-                onChange={setSelectedMeasure}
-                name="measures"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Button 
-                className="w-full gap-2 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:bg-gray-300 disabled:text-gray-500" 
-                onClick={createVisualization}
-                disabled={!selectedDimension && !selectedMeasure}
-              >
-                <ChartColumn size={16} />
-                Visualise
-              </Button>
-            </div>
-          </div>
-        </div>
-      </SlidingPanel>
-
-      {/* Main Canvas - Flex-1 */}
-      <div className="flex-1 relative">
-        <CustomReactFlow
-          nodes={nodesWithSelection}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onPaneClick={onPaneClick}
-          onNodeClick={(event, node) => {
-            // Prevent React Flow from handling node clicks when clicking on interactive elements
-            const target = event.target;
-            const isInteractiveElement = target.closest('button') || 
-                                       target.closest('[role="button"]') || 
-                                       target.closest('[role="menu"]') || 
-                                       target.closest('[role="menuitem"]') ||
-                                       target.closest('input') ||
-                                       target.closest('select') ||
-                                       target.closest('textarea') ||
-                                       target.closest('.tiptap') ||
-                                       target.closest('[data-radix-collection-item]');
-            
-            if (isInteractiveElement) {
-              // Don't let React Flow handle this click
-              event.stopPropagation();
-              return;
-            }
-            
-            // Only handle clicks on the node background
-            console.log('Node background clicked:', node.id);
-          }}
-          fitView
-          style={{ cursor: activeTool === 'select' ? 'default' : 'crosshair' }}
-          zoomOnScroll={false}
-          zoomOnPinch={true}
-          panOnScroll={true}
-          panOnScrollMode="free"
-          preventScrolling={false}
+      {/* Single Panel Container - Only one panel can be open at a time */}
+      {uploadPanelOpen && (
+        <SlidingPanel 
+          isOpen={uploadPanelOpen} 
+          title="Upload Data"
+          onClose={() => setUploadPanelOpen(false)}
         >
-          <MiniMap 
-            nodeColor={getMinimapNodeColor}
-            nodeStrokeWidth={3}
-            style={{
-              backgroundColor: '#f8fafc',
-              width: 200,
-              height: 150,
-            }}
-          />
-          <Controls 
-            style={{ 
-              position: 'absolute', 
-              bottom: '10px', 
-              right: '230px', 
-              left: 'auto' 
-            }} 
-            className="modern-controls"
-          />
-          <Background gap={16} />
-        </CustomReactFlow>
-        
-        {/* Arrow preview line when creating arrow */}
-        {activeTool === 'arrow' && arrowStart && (
-          <div className="absolute top-4 left-4 bg-blue-100 text-blue-800 px-3 py-1 rounded-lg text-sm font-medium z-10">
-            Click to set arrow end point
+          <div className="p-4">
+            <div className="space-y-3">
+              <div className="pt-2">
+                <FileUpload 
+                  accept=".csv" 
+                  onFileChange={(file) => uploadCSV(file)}
+                >
+                  {datasetId ? 'Replace CSV' : 'Choose CSV File'}
+                </FileUpload>
+                
+                {(csvFileName || datasetId) && (
+                  <div className="mt-2 border border-gray-200 rounded-lg p-3 bg-gray-50/30">
+                    {csvFileName && (
+                      <div className="text-sm text-gray-600 flex items-center gap-2 mb-2">
+                        <File size={16} />
+                        {csvFileName}
+                      </div>
+                    )}
+                    
+                    {datasetId && (
+                      <>
+                        <Badge variant="outline" className="w-fit mb-2">
+                          Dataset: {datasetId.substring(0, 8)}...
+                        </Badge>
+                        <div className="flex gap-1 flex-wrap">
+                          <Badge variant="secondary" className="text-xs">
+                            {availableDimensions.length} dimensions
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {availableMeasures.length} measures
+                          </Badge>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-        
-        {/* Settings Button and Panel */}
-        <div className="absolute top-4 right-4 z-20 flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowSettings(!showSettings)}
-            className="h-8 w-8 p-0 bg-white border border-gray-300 shadow-sm hover:bg-gray-50"
-            title="AI Settings"
+        </SlidingPanel>
+      )}
+      
+      {variablesPanelOpen && (
+        <SlidingPanel 
+          isOpen={variablesPanelOpen} 
+          title="Select Variables"
+          onClose={() => setVariablesPanelOpen(false)}
+        >
+          <div className="p-4">
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium">Dimensions</h3>
+                </div>
+                <RadioGroup
+                  options={availableDimensions}
+                  value={selectedDimension}
+                  onChange={setSelectedDimension}
+                  name="dimensions"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium">Measures</h3>
+                </div>
+                <RadioGroup
+                  options={availableMeasures}
+                  value={selectedMeasure}
+                  onChange={setSelectedMeasure}
+                  name="measures"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Button 
+                  className="w-full gap-2 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:bg-gray-300 disabled:text-gray-500" 
+                  onClick={createVisualization}
+                  disabled={!selectedDimension && !selectedMeasure}
+                >
+                  <ChartColumn size={16} />
+                  Visualise
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SlidingPanel>
+      )}
+
+      {/* Main Canvas - Responsive to Report Panel */}
+      <div className="flex-1 relative flex">
+        {/* Canvas Area */}
+        <div 
+          className="flex-1 relative transition-all duration-300"
+          style={{
+            marginRight: reportPanelOpen ? 'var(--size-panel-lg)' : '0'
+          }}
+        >
+          <CustomReactFlow
+            nodes={nodesWithSelection}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onPaneClick={onPaneClick}
+            onNodeClick={(event, node) => {
+              // Prevent React Flow from handling node clicks when clicking on interactive elements
+              const target = event.target;
+              const isInteractiveElement = target.closest('button') || 
+                                         target.closest('[role="button"]') || 
+                                         target.closest('[role="menu"]') || 
+                                         target.closest('[role="menuitem"]') ||
+                                         target.closest('input') ||
+                                         target.closest('select') ||
+                                         target.closest('textarea') ||
+                                         target.closest('.tiptap') ||
+                                         target.closest('[data-radix-collection-item]');
+              
+              if (isInteractiveElement) {
+                // Don't let React Flow handle this click
+                event.stopPropagation();
+                return;
+              }
+              
+              // Only handle clicks on the node background
+              console.log('Node background clicked:', node.id);
+            }}
+            fitView
+            style={{ cursor: activeTool === 'select' ? 'default' : 'crosshair' }}
+            zoomOnScroll={false}
+            zoomOnPinch={true}
+            panOnScroll={true}
+            panOnScrollMode="free"
+            preventScrolling={false}
           >
-            <Settings size={16} className="text-gray-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setReportPanelOpen(!reportPanelOpen)}
-            className={`h-8 w-8 p-0 bg-white border border-gray-300 shadow-sm hover:bg-gray-50 ${
-              reportPanelOpen ? 'bg-blue-50 border-blue-300 text-blue-600' : ''
-            }`}
-            title={reportPanelOpen ? 'Hide Report' : 'Show Report'}
+            <MiniMap 
+              nodeColor={getMinimapNodeColor}
+              nodeStrokeWidth={3}
+              style={{
+                backgroundColor: '#f8fafc',
+                width: 200,
+                height: 150,
+              }}
+              position="bottom-right"
+            />
+            <Controls 
+              style={{ 
+                position: 'absolute', 
+                bottom: '10px', 
+                right: '230px',
+                left: 'auto',
+                transition: 'right 300ms ease'
+              }} 
+              className="modern-controls"
+            />
+            <Background gap={16} />
+          </CustomReactFlow>
+          
+          {/* Arrow preview line when creating arrow */}
+          {activeTool === 'arrow' && arrowStart && (
+            <div className="absolute top-4 left-4 bg-blue-100 text-blue-800 px-3 py-1 rounded-lg text-sm font-medium z-10">
+              Click to set arrow end point
+            </div>
+          )}
+          
+          {/* Settings Button and Panel - Responsive Position */}
+          <div 
+            className="absolute flex gap-2 transition-all duration-300"
+            style={{
+              top: 'var(--space-4)',
+              right: reportPanelOpen ? 'var(--space-4)' : 'var(--space-4)',
+              zIndex: 'var(--z-fixed)'
+            }}
           >
-            <File size={16} className="text-gray-600" />
-          </Button>
-          {showSettings && <SettingsPanel />}
+            <IconButton
+              icon={Settings}
+              onClick={() => setShowSettings(!showSettings)}
+              active={showSettings}
+              label="AI Settings"
+              size="sm"
+              className="shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                border: '1px solid var(--color-border)'
+              }}
+            />
+            <IconButton
+              icon={File}
+              onClick={() => setReportPanelOpen(!reportPanelOpen)}
+              active={reportPanelOpen}
+              label={reportPanelOpen ? 'Hide Report' : 'Show Report'}
+              size="sm"
+              className="shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                border: '1px solid var(--color-border)'
+              }}
+            />
+            {showSettings && <SettingsPanel />}
+          </div>
         </div>
         
+        {/* Report Panel - Fixed Position */}
+        <div 
+          className="absolute top-0 right-0 h-full transition-transform duration-300"
+          style={{
+            width: 'var(--size-panel-lg)',
+            transform: reportPanelOpen ? 'translateX(0)' : 'translateX(100%)'
+          }}
+        >
+          <ReportPanel
+            isOpen={reportPanelOpen}
+            onClose={() => setReportPanelOpen(false)}
+            reportItems={reportItems}
+            onUpdateItems={setReportItems}
+          />
+        </div>
       </div>
-
-      {/* Report Panel */}
-      <ReportPanel
-        isOpen={reportPanelOpen}
-        onClose={() => setReportPanelOpen(false)}
-        reportItems={reportItems}
-        onUpdateItems={setReportItems}
-      />
     </div>
   );
 }

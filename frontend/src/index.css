@@ -4,74 +4,464 @@
 
 @layer base {
   :root {
+    /* === DESIGN SYSTEM FOUNDATION === */
+    
+    /* Colors - Professional Blue Theme */
+    --color-primary: #2563EB;
+    --color-primary-hover: #1D4ED8;
+    --color-primary-light: #3B82F6;
+    --color-primary-dark: #1E40AF;
+    --color-secondary: #6B7280;
+    --color-secondary-hover: #4B5563;
+    --color-accent: #059669;
+    --color-accent-hover: #047857;
+    
+    /* Surfaces & Backgrounds */
+    --color-bg: #FFFFFF;
+    --color-surface: #F8FAFC;
+    --color-surface-elevated: #FFFFFF;
+    --color-surface-hover: #F1F5F9;
+    --color-border: #E5E7EB;
+    --color-border-hover: #D1D5DB;
+    --color-border-focus: #2563EB;
+    
+    /* Text Colors */
+    --color-text: #111827;
+    --color-text-secondary: #6B7280;
+    --color-text-muted: #9CA3AF;
+    --color-text-inverse: #FFFFFF;
+    
+    /* Status Colors */
+    --color-success: #10B981;
+    --color-success-light: #D1FAE5;
+    --color-warning: #F59E0B;
+    --color-warning-light: #FEF3C7;
+    --color-error: #EF4444;
+    --color-error-light: #FEE2E2;
+    --color-info: #3B82F6;
+    --color-info-light: #DBEAFE;
+    
+    /* Typography */
+    --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --font-size-xs: 12px;
+    --font-size-sm: 14px;
+    --font-size-base: 16px;
+    --font-size-lg: 18px;
+    --font-size-xl: 20px;
+    --font-size-2xl: 24px;
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.625;
+    
+    /* Spacing Scale (4px base) */
+    --space-0: 0px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+    --space-20: 80px;
+    
+    /* Border Radius */
+    --radius-none: 0px;
+    --radius-sm: 4px;
+    --radius: 8px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-2xl: 24px;
+    --radius-full: 9999px;
+    
+    /* Shadows */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
+    --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.25);
+    
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-base: 200ms ease;
+    --transition-slow: 300ms ease;
+    --transition-all: all 200ms ease;
+    
+    /* Z-Index Scale */
+    --z-dropdown: 1000;
+    --z-sticky: 1020;
+    --z-fixed: 1030;
+    --z-modal-backdrop: 1040;
+    --z-modal: 1050;
+    --z-popover: 1060;
+    --z-tooltip: 1070;
+    
+    /* Component Sizes */
+    --size-sidebar: 60px;
+    --size-panel-sm: 280px;
+    --size-panel-md: 320px;
+    --size-panel-lg: 400px;
+    --size-button-sm: 32px;
+    --size-button: 40px;
+    --size-button-lg: 48px;
+    
+    /* Legacy Shadcn Variables (for compatibility) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
-
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
-
     --muted: 210 40% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
     --accent: 210 40% 96%;
     --accent-foreground: 222.2 84% 4.9%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
   }
 }
 
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
   }
+  
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* === DESIGN SYSTEM UTILITIES === */
+
+@layer utilities {
+  /* Button Base Classes */
+  .btn-base {
+    font-family: inherit;
+    font-weight: var(--font-weight-medium);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    transition: var(--transition-all);
+    text-decoration: none;
+    position: relative;
+    outline: none;
+  }
+  
+  .btn-base:focus {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+  }
+  
+  .btn-base:active {
+    transform: scale(0.98);
+  }
+  
+  .btn-base:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  /* Button Sizes */
+  .btn-sm {
+    height: var(--size-button-sm);
+    padding: 0 var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+  
+  .btn-md {
+    height: var(--size-button);
+    padding: 0 var(--space-4);
+    font-size: var(--font-size-base);
+  }
+  
+  .btn-lg {
+    height: var(--size-button-lg);
+    padding: 0 var(--space-6);
+    font-size: var(--font-size-lg);
+  }
+  
+  /* Button Variants */
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+  }
+  
+  .btn-primary:hover {
+    background-color: var(--color-primary-hover);
+  }
+  
+  .btn-secondary {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+  }
+  
+  .btn-secondary:hover {
+    background-color: var(--color-surface-hover);
+    border-color: var(--color-border-hover);
+  }
+  
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+  }
+  
+  .btn-ghost:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+  }
+  
+  /* Icon Button */
+  .btn-icon {
+    width: var(--size-button);
+    height: var(--size-button);
+    padding: 0;
+    border-radius: var(--radius);
+  }
+  
+  .btn-icon.btn-sm {
+    width: var(--size-button-sm);
+    height: var(--size-button-sm);
+  }
+  
+  .btn-icon.btn-lg {
+    width: var(--size-button-lg);
+    height: var(--size-button-lg);
+  }
+  
+  /* Toggle States */
+  .btn-toggle {
+    position: relative;
+  }
+  
+  .btn-toggle.active {
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+  }
+  
+  .btn-toggle.active:hover {
+    background-color: var(--color-primary-hover);
+  }
+  
+  /* Badge */
+  .badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    border-radius: var(--radius-full);
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--space-1);
+  }
+  
+  /* Panel Base */
+  .panel-base {
+    background-color: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    transition: var(--transition-base);
+  }
+  
+  /* Panel Sizes */
+  .panel-sm { width: var(--size-panel-sm); }
+  .panel-md { width: var(--size-panel-md); }
+  .panel-lg { width: var(--size-panel-lg); }
+  
+  /* Panel Animations */
+  .panel-slide-enter {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  
+  .panel-slide-enter-active {
+    transform: translateX(0);
+    opacity: 1;
+    transition: transform var(--transition-slow), opacity var(--transition-base);
+  }
+  
+  .panel-slide-exit {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  
+  .panel-slide-exit-active {
+    transform: translateX(-100%);
+    opacity: 0;
+    transition: transform var(--transition-slow), opacity var(--transition-base);
+  }
+  
+  /* Modal Backdrop */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1040;
+    animation: fadeIn var(--transition-base) ease;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  /* Form Elements */
+  .input-base {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: var(--font-size-base);
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    transition: var(--transition-base);
+  }
+  
+  .input-base:focus {
+    outline: none;
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  }
+  
+  /* Utility Classes */
+  .text-xs { font-size: var(--font-size-xs); }
+  .text-sm { font-size: var(--font-size-sm); }
+  .text-base { font-size: var(--font-size-base); }
+  .text-lg { font-size: var(--font-size-lg); }
+  .text-xl { font-size: var(--font-size-xl); }
+  .text-2xl { font-size: var(--font-size-2xl); }
+  
+  .font-normal { font-weight: var(--font-weight-normal); }
+  .font-medium { font-weight: var(--font-weight-medium); }
+  .font-semibold { font-weight: var(--font-weight-semibold); }
+  .font-bold { font-weight: var(--font-weight-bold); }
+  
+  .text-primary { color: var(--color-primary); }
+  .text-secondary { color: var(--color-text-secondary); }
+  .text-muted { color: var(--color-text-muted); }
+  .text-success { color: var(--color-success); }
+  .text-warning { color: var(--color-warning); }
+  .text-error { color: var(--color-error); }
+  
+  .bg-primary { background-color: var(--color-primary); }
+  .bg-surface { background-color: var(--color-surface); }
+  .bg-success-light { background-color: var(--color-success-light); }
+  .bg-warning-light { background-color: var(--color-warning-light); }
+  .bg-error-light { background-color: var(--color-error-light); }
+  
+  .shadow-xs { box-shadow: var(--shadow-xs); }
+  .shadow-sm { box-shadow: var(--shadow-sm); }
+  .shadow-md { box-shadow: var(--shadow-md); }
+  .shadow-lg { box-shadow: var(--shadow-lg); }
+  
+  /* Select Dropdown Z-Index Fix for Modals - More Aggressive Approach */
+  [data-radix-select-content] {
+    z-index: 9999 !important;
+    position: fixed !important;
+  }
+  
+  [data-radix-popper-content-wrapper] {
+    z-index: 9999 !important;
+  }
+  
+  /* Radix Portal containers */
+  [data-radix-portal] {
+    z-index: 9999 !important;
+  }
+  
+  /* Override any modal z-index conflicts */
+  .modal-backdrop [data-radix-select-content],
+  .modal-backdrop [data-radix-popper-content-wrapper],
+  .modal-backdrop [data-radix-portal] {
+    z-index: 9999 !important;
+    position: fixed !important;
+  }
+  
+  /* Additional Select component styling fixes */
+  [data-radix-select-viewport] {
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  [data-radix-select-item] {
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    transition: var(--transition-base);
+    color: var(--color-text);
+    background-color: transparent;
+  }
+  
+  [data-radix-select-item]:hover,
+  [data-radix-select-item][data-highlighted] {
+    background-color: var(--color-surface-hover);
+    outline: none;
+  }
+  
+  [data-radix-select-item][data-state="checked"] {
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+  }
+  
+  /* Ensure select trigger is properly styled */
+  [data-radix-select-trigger] {
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    transition: var(--transition-base);
+  }
+  
+  [data-radix-select-trigger]:hover {
+    border-color: var(--color-border-hover);
+  }
+  
+  [data-radix-select-trigger]:focus {
+    outline: none;
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
   }
 }
 
@@ -448,4 +838,126 @@ code {
 /* Hide React Flow attribution */
 .react-flow__attribution {
   display: none !important;
+}
+
+/* Plotly Modebar Positioning - Outside Chart Boundary */
+.modebar {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  padding: 4px !important;
+  position: absolute !important;
+  top: 10px !important;
+  right: -70px !important; /* Increased distance from right edge */
+  z-index: 9999 !important; /* Higher z-index to ensure visibility */
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  pointer-events: auto !important; /* Ensure buttons are clickable */
+  visibility: visible !important; /* Force visibility */
+  opacity: 1 !important; /* Ensure full opacity */
+}
+
+/* Ensure the parent plot container allows overflow for the modebar */
+.js-plotly-plot .plotly {
+  overflow: visible !important;
+}
+
+.js-plotly-plot .main-svg {
+  overflow: visible !important;
+}
+
+/* Ensure chart containers don't clip the modebar */
+.js-plotly-plot {
+  overflow: visible !important;
+  position: relative !important;
+}
+
+/* Make sure the plot div allows overflow */
+div[data-title*="plot"] {
+  overflow: visible !important;
+}
+
+/* Additional container overflow fixes */
+.plotly-graph-div {
+  overflow: visible !important;
+}
+
+.plot-container {
+  overflow: visible !important;
+}
+
+.modebar-group {
+  background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.modebar-btn {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 6px !important;
+  margin: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.modebar-btn:hover {
+  background: rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Target all SVG elements within modebar buttons */
+.modebar-btn svg,
+.modebar-btn svg path,
+.modebar-btn .icon,
+.modebar-btn .icon path {
+  width: 16px !important;
+  height: 16px !important;
+  fill: #374151 !important; /* Dark gray for visibility */
+  stroke: none !important;
+  pointer-events: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.modebar-btn:hover svg,
+.modebar-btn:hover svg path,
+.modebar-btn:hover .icon,
+.modebar-btn:hover .icon path {
+  fill: #2563eb !important; /* Blue on hover */
+}
+
+/* Additional targeting for Plotly's specific icon classes */
+.modebar .modebar-btn[data-title] svg {
+  fill: #374151 !important;
+}
+
+.modebar .modebar-btn[data-title]:hover svg {
+  fill: #2563eb !important;
+}
+
+/* Force color on all possible SVG selectors */
+.modebar svg,
+.modebar-group svg,
+.modebar-btn svg {
+  fill: #374151 !important;
+  color: #374151 !important;
+}
+
+.modebar:hover svg,
+.modebar-group:hover svg,
+.modebar-btn:hover svg {
+  fill: #2563eb !important;
+  color: #2563eb !important;
 }
