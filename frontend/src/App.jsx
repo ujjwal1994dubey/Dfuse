@@ -3,8 +3,9 @@ import ReactFlow, { Background, Controls, MiniMap, applyNodeChanges, applyEdgeCh
 import Plot from 'react-plotly.js';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
 import { Button, Badge, Card, CardHeader, CardContent, FileUpload, RadioGroup, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui';
-import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, MenuIcon, Upload, Calculator, ArrowRight, Download } from 'lucide-react';
+import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, MenuIcon, Upload, Calculator, ArrowRight, Download, Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2 } from 'lucide-react';
 import { marked } from 'marked';
 import './tiptap-styles.css';
 
@@ -1747,7 +1748,7 @@ function ChartTypeSelector({ dimensions = [], measures = [], currentType, onType
  * @param {Function} updateTokenUsage - Updates token usage metrics
  * @param {Function} onAddToReport - Callback to add chart to report document
  */
-function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage, onAddToReport }) {
+function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage, onAddToReport, setReportPanelOpen }) {
   const { title, figure, isFused, strategy, stats, agg, dimensions = [], measures = [], onAggChange, onShowTable, table = [] } = data;
   const [menuOpen, setMenuOpen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -2144,20 +2145,26 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
         updateTokenUsage(result.token_usage);
       }
       
-      // Step 4: Add to report
-      const newSection = {
-        id: `section-${Date.now()}`,
-        chartId: id,
-        chartTitle: result.chart_title,
-        chartImage: chartImage,
-        content: result.report_section,
-        timestamp: new Date().toISOString()
+      // Step 4: Add to report - Create image and text items
+      const imageItem = {
+        id: `image-${Date.now()}`,
+        type: 'image',
+        imageUrl: chartImage
       };
       
-      // Call parent handler
+      const textItem = {
+        id: `text-${Date.now()}`,
+        type: 'text',
+        content: result.report_section
+      };
+      
+      // Call parent handler with both items
       if (onAddToReport) {
-        onAddToReport(newSection);
+        onAddToReport([imageItem, textItem]);
       }
+      
+      // Auto-open report panel
+      setReportPanelOpen(true);
       
     } catch (error) {
       console.error('Add to report failed:', error);
@@ -2624,6 +2631,104 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
 }
 
 /**
+ * RichTextEditor Component
+ * Simple Tiptap-based rich text editor with toolbar for formatting.
+ * Used in report panel for text editing.
+ * 
+ * Features:
+ * - Toolbar with formatting buttons
+ * - Formatting: Bold, Italic, Underline, Heading 1, Heading 2
+ * - Stores content as HTML for semantic structure
+ * - Controlled component with onChange callback
+ * 
+ * @param {string} content - Initial HTML content
+ * @param {Function} onChange - Callback with updated HTML on content change
+ * @param {boolean} showToolbar - Whether to show the formatting toolbar
+ * @param {string} className - Additional CSS classes
+ */
+function RichTextEditor({ content, onChange, showToolbar = true, className = '' }) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline
+    ],
+    content: content || '<p>Start typing...</p>',
+    editable: true,
+    onUpdate: ({ editor }) => {
+      if (onChange) {
+        onChange(editor.getHTML());
+      }
+    }
+  });
+
+  // Update editor when content prop changes externally
+  useEffect(() => {
+    if (editor && content && content !== editor.getHTML()) {
+      editor.commands.setContent(content);
+    }
+  }, [content, editor]);
+
+  // Cleanup editor on unmount
+  useEffect(() => {
+    return () => {
+      if (editor) {
+        editor.destroy();
+      }
+    };
+  }, [editor]);
+
+  if (!editor) {
+    return null;
+  }
+
+  return (
+    <div className={`rich-text-editor-container ${className}`}>
+      {showToolbar && (
+        <div className="editor-toolbar">
+          <button
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            className={`toolbar-btn ${editor.isActive('bold') ? 'is-active' : ''}`}
+            title="Bold"
+          >
+            <Bold size={16} />
+          </button>
+          <button
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            className={`toolbar-btn ${editor.isActive('italic') ? 'is-active' : ''}`}
+            title="Italic"
+          >
+            <Italic size={16} />
+          </button>
+          <button
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            className={`toolbar-btn ${editor.isActive('underline') ? 'is-active' : ''}`}
+            title="Underline"
+          >
+            <UnderlineIcon size={16} />
+          </button>
+          <div className="toolbar-separator" />
+          <button
+            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            className={`toolbar-btn ${editor.isActive('heading', { level: 1 }) ? 'is-active' : ''}`}
+            title="Heading 1"
+          >
+            <Heading1 size={16} />
+          </button>
+          <button
+            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+            className={`toolbar-btn ${editor.isActive('heading', { level: 2 }) ? 'is-active' : ''}`}
+            title="Heading 2"
+          >
+            <Heading2 size={16} />
+          </button>
+        </div>
+      )}
+      <EditorContent editor={editor} className="editor-content" />
+    </div>
+  );
+}
+
+/**
  * InsightStickyNote Component
  * A draggable and resizable sticky note that displays AI-generated chart insights.
  * Can be repositioned and resized to accommodate different insight lengths.
@@ -2712,7 +2817,7 @@ function InsightStickyNote({
       </div>
       
       {/* Content */}
-      <div className="text-xs text-yellow-900 overflow-y-auto h-full pr-2">
+      <div className="text-xs text-yellow-900 overflow-y-auto h-full pr-2 whitespace-pre-wrap">
         {insight}
       </div>
       
@@ -2796,6 +2901,11 @@ function UnifiedSidebar({
   
   return (
     <div className="w-[60px] bg-white border-r border-gray-300 flex flex-col items-center py-4 gap-2">
+      {/* Logo */}
+      <div className="mb-4">
+        <SquaresExclude size={32} className="text-blue-600" />
+      </div>
+      
       {/* Toggle Buttons */}
       {toggleButtons.map(btn => (
         <button
@@ -2916,122 +3026,144 @@ function SlidingPanel({ isOpen, title, children, onClose }) {
  * @param {Function} onRemove - Callback to remove this section from report
  * @param {Function} onUpdate - Callback to update section content after editing
  */
-function ReportSection({ section, onRemove, onUpdate }) {
+function ReportItem({ item, onRemove, onUpdate }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState(section.content);
 
-  const handleSave = () => {
-    onUpdate(section.id, editedContent);
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setEditedContent(section.content);
-    setIsEditing(false);
-  };
-
-  return (
-    <div className="border-l-4 border-blue-500 pl-4 space-y-4 print:border-l-2 print:pl-6 print:mb-8">
-      {/* Chart Image */}
-      {section.chartImage && (
+  if (item.type === 'image') {
+    return (
+      <div className="relative group border rounded-lg overflow-hidden print:border-0 print:shadow-none">
         <img 
-          src={section.chartImage} 
-          alt={section.chartTitle}
-          className="w-full rounded-lg shadow-sm border print:max-w-full print:h-auto print:mb-4"
+          src={item.imageUrl} 
+          alt="Report chart"
+          className="w-full print:max-w-full print:h-auto"
         />
-      )}
-      
-      {/* Editable Content */}
-      {isEditing ? (
-        <div className="space-y-2 print:hidden">
-          <textarea
-            value={editedContent}
-            onChange={(e) => setEditedContent(e.target.value)}
-            className="w-full min-h-[200px] p-3 border border-gray-300 rounded-md font-sans text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Edit your report content (supports markdown)..."
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Save
-            </button>
-            <button
-              onClick={handleCancel}
-              className="px-3 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div 
-          className="prose prose-sm max-w-none cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors print:cursor-default print:hover:bg-white print:p-0"
-          onClick={() => setIsEditing(true)}
-          title="Click to edit"
-        >
-          <div dangerouslySetInnerHTML={{ __html: marked.parse(editedContent) }} />
-        </div>
-      )}
-      
-      {/* Action Buttons - Hidden in print */}
-      <div className="flex gap-2 print:hidden">
-        {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-          >
-            <Edit size={12} />
-            Edit
-          </button>
-        )}
         <button
           onClick={onRemove}
-          className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1"
+          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
         >
-          <X size={12} />
-          Remove
+          <X size={14} />
         </button>
       </div>
+    );
+  }
+
+  // Text item
+  const isEmpty = !item.content || item.content === '<p></p>' || item.content === '<p>Start typing...</p>' || item.content === '<p>New text section...</p>';
+
+  if (!isEditing) {
+    // Preview mode
+    return (
+      <div 
+        className="relative group border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors min-h-[100px] print:border-0 print:cursor-default print:hover:bg-white print:min-h-0"
+        onClick={() => setIsEditing(true)}
+      >
+        {isEmpty ? (
+          <p className="text-gray-400 italic print:hidden">Write here...</p>
+        ) : (
+          <div 
+            className="formatted-content"
+            dangerouslySetInnerHTML={{ __html: item.content }} 
+          />
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  // Edit mode
+  return (
+    <div className="relative group border rounded-lg print:border-0">
+      <RichTextEditor
+        content={item.content}
+        onChange={(newContent) => onUpdate(item.id, newContent)}
+        showToolbar={true}
+      />
+      <div className="p-2 border-t flex gap-2 justify-end print:hidden">
+        <button
+          onClick={() => setIsEditing(false)}
+          className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Done
+        </button>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 print:hidden"
+      >
+        <X size={14} />
+      </button>
     </div>
   );
 }
 
 /**
  * ReportPanel Component
- * Right-side collapsible panel that displays the full report document.
- * Contains editable title, subheading, and multiple chart sections.
- * Supports PDF export via browser print dialog.
+ * Simplified right-side panel for creating reports with text and images.
+ * Users can add text editors and upload images to build their report.
  * 
  * Features:
- * - Editable report title (default: "Data Analysis Report")
- * - Editable subheading (default: "Created on: dd/mm/yyyy")
- * - Multiple chart sections with insights
- * - PDF export button (triggers window.print)
- * - Empty state message when no sections exist
- * - Print-optimized styling (A4 format)
+ * - Add Text button (creates new rich text editor)
+ * - Add Image button (uploads/adds chart images)
+ * - Each item is editable/removable
+ * - Receives items from parent (including chart images and AI insights)
+ * - PDF export via browser print
  * 
  * @param {boolean} isOpen - Whether panel is currently visible
  * @param {Function} onClose - Callback when panel is closed
- * @param {Array} reportSections - Array of report section objects
- * @param {Function} onUpdateSections - Callback to update entire sections array
+ * @param {Array} reportItems - Array of report items from parent
+ * @param {Function} onUpdateItems - Callback to update items array
  */
-function ReportPanel({ isOpen, onClose, reportSections, onUpdateSections }) {
-  const [reportTitle, setReportTitle] = useState('Data Analysis Report');
-  const [reportSubheading, setReportSubheading] = useState(() => {
-    const today = new Date();
-    const dd = String(today.getDate()).padStart(2, '0');
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const yyyy = today.getFullYear();
-    return `Created on: ${dd}/${mm}/${yyyy}`;
-  });
+function ReportPanel({ isOpen, onClose, reportItems, onUpdateItems }) {
+  const fileInputRef = useRef(null);
 
-  const handleUpdateSection = (sectionId, newContent) => {
-    const updatedSections = reportSections.map(section =>
-      section.id === sectionId ? { ...section, content: newContent } : section
-    );
-    onUpdateSections(updatedSections);
+  const handleAddText = () => {
+    const newItem = {
+      id: `text-${Date.now()}`,
+      type: 'text',
+      content: ''
+    };
+    onUpdateItems([...reportItems, newItem]);
+  };
+
+  const handleAddImage = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const newItem = {
+          id: `image-${Date.now()}`,
+          type: 'image',
+          imageUrl: event.target.result
+        };
+        onUpdateItems([...reportItems, newItem]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdateItem = (itemId, newContent) => {
+    onUpdateItems(reportItems.map(item =>
+      item.id === itemId ? { ...item, content: newContent } : item
+    ));
+  };
+
+  const handleRemoveItem = (itemId) => {
+    onUpdateItems(reportItems.filter(item => item.id !== itemId));
   };
 
   const handlePrint = () => {
@@ -3047,7 +3179,7 @@ function ReportPanel({ isOpen, onClose, reportSections, onUpdateSections }) {
         <>
           {/* Header - Hidden in print */}
           <div className="flex items-center justify-between p-4 border-b print:hidden">
-            <h2 className="text-lg font-semibold">Report Document</h2>
+            <h2 className="text-lg font-semibold">Report</h2>
             <div className="flex gap-2">
               <Button 
                 onClick={handlePrint} 
@@ -3063,51 +3195,75 @@ function ReportPanel({ isOpen, onClose, reportSections, onUpdateSections }) {
             </div>
           </div>
           
-          {/* Report Content - Only this is visible in print */}
-          <div className="flex-1 overflow-y-auto" id="report-content">
-            {reportSections.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 print:hidden">
-                <File size={48} className="mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium mb-2">Empty Report</p>
-                <p className="text-sm">Add charts to your report using the "Add to Report" option from chart menus</p>
-              </div>
-            ) : (
-              <div className="p-6 space-y-8 print:p-8">
-                {/* Editable Report Header */}
-                <div className="border-b pb-4 print:border-b-2 print:border-gray-300">
-                  <input
-                    type="text"
-                    value={reportTitle}
-                    onChange={(e) => setReportTitle(e.target.value)}
-                    placeholder="Click to edit report title"
-                    className="text-2xl font-bold w-full border-none focus:outline-none focus:ring-0 hover:bg-gray-50 p-2 rounded print:p-0 print:hover:bg-white"
-                  />
-                  <input
-                    type="text"
-                    value={reportSubheading}
-                    onChange={(e) => setReportSubheading(e.target.value)}
-                    placeholder="Click to edit subheading"
-                    className="text-sm text-gray-500 mt-2 w-full border-none focus:outline-none focus:ring-0 hover:bg-gray-50 p-2 rounded print:p-0 print:hover:bg-white"
-                  />
-                </div>
-                
-                {/* Report Sections */}
-                {reportSections.map((section, idx) => (
-                  <ReportSection
-                    key={section.id}
-                    section={section}
-                    onRemove={() => onUpdateSections(reportSections.filter(s => s.id !== section.id))}
-                    onUpdate={handleUpdateSection}
-                  />
-                ))}
-              </div>
-            )}
+          {/* Report Content */}
+          <div id="report-content" className="flex-1 overflow-y-auto p-4 space-y-4 print:p-8">
+            {reportItems.map((item) => (
+              <ReportItem
+                key={item.id}
+                item={item}
+                onRemove={() => handleRemoveItem(item.id)}
+                onUpdate={handleUpdateItem}
+              />
+            ))}
+          </div>
+
+          {/* Add Buttons - Hidden in print */}
+          <div className="p-4 border-t flex gap-2 print:hidden">
+            <Button 
+              onClick={handleAddText}
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              <Type size={16} className="mr-2" />
+              Add Text
+            </Button>
+            <Button 
+              onClick={handleAddImage}
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              <Upload size={16} className="mr-2" />
+              Add Image
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
           </div>
         </>
       )}
     </div>
   );
 }
+
+/**
+ * Get color for minimap nodes based on node type
+ * Provides visual differentiation in the minimap for better navigation
+ * 
+ * @param {Object} node - React Flow node object
+ * @returns {string} - Hex color code for the node
+ */
+const getMinimapNodeColor = (node) => {
+  switch (node.type) {
+    case 'chart':
+      return '#3b82f6'; // Blue - for chart nodes
+    case 'textbox':
+      return '#fbbf24'; // Yellow - for sticky notes/text boxes
+    case 'expression':
+      return '#10b981'; // Green - for expression nodes
+    case 'table':
+      return '#8b5cf6'; // Purple - for table nodes
+    case 'arrow':
+      return '#6b7280'; // Gray - for arrow nodes
+    default:
+      return '#94a3b8'; // Light gray - fallback
+  }
+};
 
 /**
  * CustomReactFlow Component
@@ -3168,7 +3324,7 @@ function ReactFlowWrapper() {
   
   // Report state
   const [reportPanelOpen, setReportPanelOpen] = useState(false);
-  const [reportSections, setReportSections] = useState([]);
+  const [reportItems, setReportItems] = useState([]);
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [selectedModel, setSelectedModel] = useState(localStorage.getItem('gemini_model') || 'gemini-2.0-flash');
   const [configStatus, setConfigStatus] = useState('idle'); // idle, testing, success, error
@@ -3214,10 +3370,12 @@ function ReactFlowWrapper() {
     }
   }, []);
 
-  // Handler for adding sections to report (must be before nodeTypes)
-  const handleAddReportSection = useCallback((newSection) => {
-    setReportSections(prev => [...prev, newSection]);
-    // Auto-open report panel when section is added
+  // Handler for adding items to report (must be before nodeTypes)
+  const handleAddReportItems = useCallback((newItems) => {
+    // newItems can be an array of items (image + text) or a single item
+    const itemsArray = Array.isArray(newItems) ? newItems : [newItems];
+    setReportItems(prev => [...prev, ...itemsArray]);
+    // Auto-open report panel when items are added
     setReportPanelOpen(true);
   }, []);
 
@@ -3233,7 +3391,8 @@ function ReactFlowWrapper() {
         selectedModel={selectedModel}
         setShowSettings={setShowSettings}
         updateTokenUsage={updateTokenUsage}
-        onAddToReport={handleAddReportSection}
+        onAddToReport={handleAddReportItems}
+        setReportPanelOpen={setReportPanelOpen}
       />
     ),
     arrow: ArrowNode,
@@ -3248,7 +3407,7 @@ function ReactFlowWrapper() {
         updateTokenUsage={updateTokenUsage}
       />
     )
-  }), [apiKey, selectedModel, setShowSettings, updateTokenUsage, handleAddReportSection]);
+  }), [apiKey, selectedModel, setShowSettings, updateTokenUsage, handleAddReportItems, setReportPanelOpen]);
 
   // Viewport transform: [translateX, translateY, zoom]
   const transform = useStore(s => s.transform);
@@ -4687,15 +4846,7 @@ function ReactFlowWrapper() {
       >
         <div className="p-4">
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <SquaresExclude size={40} className="text-blue-600 shrink-0" />
-              <div className="flex flex-col">
-                <h1 className="text-xl font-bold text-gray-900">D.Fuse</h1>
-                <p className="text-sm text-muted-foreground">Data exploration notebook</p>
-              </div>
-            </div>
-            
-            <div className="pt-4">
+            <div className="pt-2">
               <FileUpload 
                 accept=".csv" 
                 onFileChange={(file) => uploadCSV(file)}
@@ -4819,8 +4970,24 @@ function ReactFlowWrapper() {
           panOnScrollMode="free"
           preventScrolling={false}
         >
-          <MiniMap />
-          <Controls style={{ position: 'absolute', bottom: '10px', right: '230px', left: 'auto' }} />
+          <MiniMap 
+            nodeColor={getMinimapNodeColor}
+            nodeStrokeWidth={3}
+            style={{
+              backgroundColor: '#f8fafc',
+              width: 200,
+              height: 150,
+            }}
+          />
+          <Controls 
+            style={{ 
+              position: 'absolute', 
+              bottom: '10px', 
+              right: '230px', 
+              left: 'auto' 
+            }} 
+            className="modern-controls"
+          />
           <Background gap={16} />
         </CustomReactFlow>
         
@@ -4862,8 +5029,8 @@ function ReactFlowWrapper() {
       <ReportPanel
         isOpen={reportPanelOpen}
         onClose={() => setReportPanelOpen(false)}
-        reportSections={reportSections}
-        onUpdateSections={setReportSections}
+        reportItems={reportItems}
+        onUpdateItems={setReportItems}
       />
     </div>
   );

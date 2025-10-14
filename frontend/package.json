@@ -7,6 +7,7 @@
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@tiptap/core": "^3.3.0",
+    "@tiptap/extension-bubble-menu": "^3.6.6",
     "@tiptap/react": "^3.3.0",
     "@tiptap/starter-kit": "^3.3.0",
     "@tiptap/suggestion": "^3.3.0",
