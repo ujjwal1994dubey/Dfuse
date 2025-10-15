@@ -25,8 +25,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Local development
-        "https://*.vercel.app",   # All Vercel subdomains
-        "https://your-app-name.vercel.app"  # Replace with your actual URL later
+        "https://*.onrender.com",  # All Render domains
+        "https://dfuse-frontend.onrender.com",  # Your specific frontend URL
+        "https://dfuse-backend.onrender.com"   # Allow backend-to-backend if needed
     ],
     allow_credentials=True,
     allow_methods=["*"],
