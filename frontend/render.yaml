@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: dfuse-frontend
+    env: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./build
+    pullRequestPreviewsEnabled: false
