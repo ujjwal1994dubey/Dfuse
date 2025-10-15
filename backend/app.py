@@ -13,9 +13,21 @@ import json
 from gemini_llm import GeminiDataFormulator
 
 app = FastAPI(title="Chart Fusion Backend")
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],  # Allow all origins for development
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "https://*.vercel.app",   # All Vercel subdomains
+        "https://your-app-name.vercel.app"  # Replace with your actual URL later
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,6 +38,17 @@ app.add_middleware(
 # -----------------------
 DATASETS: Dict[str, pd.DataFrame] = {}
 CHARTS: Dict[str, Dict[str, Any]] = {}
+
+
+# Add this right after line 28 (after the CHARTS dictionary):
+
+@app.get("/")
+async def root():
+    return {"message": "D.fuse Backend API", "status": "running"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": "2024-01-01"}
 
 # -----------------------
 # Models
