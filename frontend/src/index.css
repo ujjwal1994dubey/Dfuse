@@ -627,140 +627,200 @@ code {
   /* A4 page setup */
   @page {
     size: A4;
-    margin: 20mm;
+    margin: 10mm;
   }
 
-  /* Hide everything except the report content */
-  body * {
-    visibility: hidden;
+  /* Hide everything by default */
+  * {
+    visibility: hidden !important;
   }
 
   /* Show only the report content and its children */
   #report-content,
   #report-content * {
-    visibility: visible;
+    visibility: visible !important;
   }
 
-  /* Position report content at top of page */
+  /* Also make sure parent containers of report-content are visible */
+  body,
+  html {
+    visibility: visible !important;
+  }
+
+  /* Ensure the report content uses the FULL page width */
   #report-content {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 190mm !important; /* Use almost full A4 width */
+    margin: 0 !important;
+    padding: 5mm !important;
+    box-sizing: border-box !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    color: #000 !important;
+    background: white !important;
     overflow: visible !important;
+    z-index: 9999 !important;
+  }
+
+  /* Make all content inside use full width */
+  #report-content > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin-bottom: 15pt !important;
+    visibility: visible !important;
   }
 
   /* Prevent page breaks inside report items */
-  .border-l-4,
-  .formatted-content {
+  #report-content .border-l-4,
+  #report-content .formatted-content {
     page-break-inside: avoid;
     break-inside: avoid;
+    margin-bottom: 15pt !important;
   }
 
-  /* Ensure images fit within page */
-  img {
-    max-width: 100% !important;
+  /* Make images use more width and center them */
+  #report-content img {
+    width: 85% !important; /* Use most of the page width */
+    max-width: 85% !important;
     height: auto !important;
     page-break-inside: avoid;
     page-break-after: auto;
     page-break-before: auto;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 15pt auto !important; /* Center the images */
+    visibility: visible !important;
   }
 
-  /* Clean up text for print */
-  input[type="text"] {
+  /* Make text content use full width */
+  #report-content input[type="text"] {
     border: none !important;
     background: transparent !important;
-    padding: 0 !important;
-    pointer-events: none !important;
-    color: inherit !important;
+    padding: 5pt 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    font-size: 14pt !important;
+    color: #000 !important;
+    text-align: center !important;
+    font-weight: bold !important;
+    visibility: visible !important;
   }
 
-  /* Remove borders and interactive styling */
-  .border,
-  .border-lg,
-  .rounded-lg {
-    border: none !important;
-    border-radius: 0 !important;
+  /* Style headings to use full width */
+  #report-content h1,
+  #report-content h2, 
+  #report-content h3, 
+  #report-content h4, 
+  #report-content h5, 
+  #report-content h6 {
+    color: #000 !important;
+    margin: 20pt 0 15pt 0 !important;
+    page-break-after: avoid;
+    width: 100% !important;
+    text-align: center !important;
+    visibility: visible !important;
   }
 
-  .cursor-pointer,
-  .hover\:bg-gray-50 {
-    cursor: default !important;
-    background: transparent !important;
+  #report-content h1 {
+    font-size: 20pt !important;
+    font-weight: bold !important;
   }
 
-  /* Ensure proper spacing between items */
-  .space-y-4 > * + * {
-    margin-top: 1.5rem !important;
+  #report-content h2 {
+    font-size: 18pt !important;
+    font-weight: bold !important;
   }
 
-  .space-y-8 > * + * {
-    margin-top: 2rem !important;
+  #report-content h3 {
+    font-size: 16pt !important;
+    font-weight: bold !important;
   }
 
-  /* Hide toolbar in print */
-  .editor-toolbar {
+  /* Make paragraphs and text use full width */
+  #report-content p,
+  #report-content div.formatted-content {
+    margin-bottom: 12pt !important;
+    line-height: 1.6 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    visibility: visible !important;
+    text-align: justify !important;
+    font-size: 11pt !important;
+    padding: 0 10pt !important; /* Add some padding for better readability */
+  }
+
+  /* Special styling for report items containers */
+  #report-content > div {
+    width: 100% !important;
+    padding: 10pt 0 !important;
+    margin-bottom: 20pt !important;
+    border-bottom: 1pt solid #ddd !important;
+  }
+
+  /* Last item shouldn't have border */
+  #report-content > div:last-child {
+    border-bottom: none !important;
+  }
+
+  /* Hide buttons and UI elements */
+  button,
+  .print\\:hidden {
+    visibility: hidden !important;
     display: none !important;
   }
 
-  /* Format headings properly in print */
-  .editor-content h1,
-  .formatted-content h1 {
-    font-size: 1.5rem !important;
-    font-weight: 700 !important;
-    page-break-after: avoid;
-    margin-top: 1rem !important;
-    margin-bottom: 0.5rem !important;
+  /* Remove any problematic styling that might constrain width */
+  #report-content * {
+    opacity: 1 !important;
+    transform: none !important;
+    position: relative !important;
   }
 
-  .editor-content h2,
-  .formatted-content h2 {
-    font-size: 1.25rem !important;
-    font-weight: 600 !important;
-    page-break-after: avoid;
-    margin-top: 0.75rem !important;
-    margin-bottom: 0.5rem !important;
-  }
-
-  /* Format paragraphs properly in print */
-  .editor-content p,
-  .formatted-content p {
-    line-height: 1.6 !important;
-    margin-top: 0.5rem !important;
-    margin-bottom: 0.5rem !important;
-  }
-
-  /* Format text styling */
-  .editor-content strong,
-  .formatted-content strong {
-    font-weight: 600 !important;
-  }
-
-  .editor-content em,
-  .formatted-content em {
-    font-style: italic !important;
-  }
-
-  .editor-content u,
-  .formatted-content u {
-    text-decoration: underline !important;
-  }
-
-  /* Format lists in print */
-  .editor-content ul,
-  .formatted-content ul,
-  .editor-content ol,
-  .formatted-content ol {
-    margin-top: 0.5rem !important;
-    margin-bottom: 0.5rem !important;
-    padding-left: 1.5rem !important;
-  }
-
-  /* Remove padding from content wrapper */
+  /* Special override for the report content container */
   #report-content {
-    padding: 0 !important;
+    position: absolute !important;
+  }
+
+  /* Ensure formatted content uses full width */
+  .formatted-content {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Style any nested divs to use full width */
+  #report-content div {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 }
+
+/* NEW SIMPLIFIED Print Styles - Updated approach with complete DOM restructuring */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+
+  /* The JavaScript creates a new #print-only-container which handles all layout */
+  #print-only-container {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Additional print styles continue here if needed */
 
 /* MiniMap Enhanced Styling */
 .react-flow__minimap {

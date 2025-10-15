@@ -5,12 +5,85 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import { Button, Badge, Card, CardHeader, CardContent, FileUpload, RadioGroup, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui';
-import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, MenuIcon, Upload, Calculator, ArrowRight, Download, Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2 } from 'lucide-react';
+import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, AlignStartVertical, MenuIcon, Upload, Calculator, ArrowRight, Download, Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2 } from 'lucide-react';
 import { marked } from 'marked';
 import './tiptap-styles.css';
 
 // Backend API endpoint URL
 const API = 'http://localhost:8000';
+
+/**
+ * Chart Figure Cache - Performance Optimization
+ * Cache computed Plotly figures to prevent unnecessary re-computation
+ */
+const chartFigureCache = new Map();
+const CACHE_MAX_SIZE = 100; // Prevent memory leaks
+
+function getCachedFigure(cacheKey, computeFn) {
+  if (chartFigureCache.has(cacheKey)) {
+    return chartFigureCache.get(cacheKey);
+  }
+  
+  const figure = computeFn();
+  
+  // Simple LRU eviction if cache gets too large
+  if (chartFigureCache.size >= CACHE_MAX_SIZE) {
+    const firstKey = chartFigureCache.keys().next().value;
+    chartFigureCache.delete(firstKey);
+  }
+  
+  chartFigureCache.set(cacheKey, figure);
+  return figure;
+}
+
+function clearChartCache() {
+  chartFigureCache.clear();
+}
+
+/**
+ * Debounce utility for performance optimization
+ * Prevents excessive function calls during rapid user interactions
+ */
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Viewport Visibility Utilities - Performance Optimization
+ * Calculate if nodes are visible within current viewport to optimize rendering
+ */
+function isNodeVisible(node, viewport, buffer = 200) {
+  const { x: viewX, y: viewY, zoom } = viewport;
+  const viewWidth = window.innerWidth / zoom;
+  const viewHeight = window.innerHeight / zoom;
+  
+  const nodeX = node.position.x;
+  const nodeY = node.position.y;
+  const nodeWidth = node.data.width || 300;
+  const nodeHeight = node.data.height || 200;
+  
+  // Calculate viewport bounds with buffer
+  const viewLeft = -viewX / zoom - buffer;
+  const viewTop = -viewY / zoom - buffer;
+  const viewRight = viewLeft + viewWidth + buffer * 2;
+  const viewBottom = viewTop + viewHeight + buffer * 2;
+  
+  // Check if node intersects with viewport
+  return !(
+    nodeX + nodeWidth < viewLeft ||
+    nodeX > viewRight ||
+    nodeY + nodeHeight < viewTop ||
+    nodeY > viewBottom
+  );
+}
 
 /**
  * Default Chart Colors
@@ -512,7 +585,13 @@ const sanitizeLayout = (layout) => {
     return {
       ...DEFAULT_LAYOUT,
       title: { text: 'Chart' },
-      showlegend: false
+      showlegend: false,
+      legend: {
+        bgcolor: 'rgba(255,255,255,0.9)',
+        bordercolor: '#E5E7EB',
+        borderwidth: 1,
+        font: { size: 11, color: '#6B7280' }
+      }
     };
   }
   
@@ -520,15 +599,15 @@ const sanitizeLayout = (layout) => {
   return {
     ...DEFAULT_LAYOUT,
     ...layout,
-    // Ensure legend is always properly defined with default colors
+    // Ensure legend is always properly defined - NEVER undefined to prevent scroll errors
     showlegend: layout.showlegend !== undefined ? layout.showlegend : false,
-    legend: layout.showlegend && layout.legend ? {
+    legend: {
       bgcolor: 'rgba(255,255,255,0.9)',
       bordercolor: '#E5E7EB',
       borderwidth: 1,
       font: { size: 11, color: '#6B7280' },
-      ...layout.legend
-    } : undefined,
+      ...(layout.legend || {})
+    },
     // Apply default axis styling if not explicitly set
     xaxis: {
       gridcolor: DEFAULT_LAYOUT.gridcolor,
@@ -562,7 +641,7 @@ const sanitizeLayout = (layout) => {
  * 
  * @param {Object} data - Contains label text and styling information
  */
-function ArrowNode({ data }) {
+const ArrowNode = React.memo(function ArrowNode({ data }) {
   const { id, start, end } = data;
 
   // Compute local coordinates inside a bbox anchored at (minX, minY)
@@ -585,7 +664,14 @@ function ArrowNode({ data }) {
       <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="#2563eb" strokeWidth="3" markerEnd={`url(#arrow-head-${id})`} />
     </svg>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison function for ArrowNode performance optimization
+  return (
+    prevProps.data.id === nextProps.data.id &&
+    JSON.stringify(prevProps.data.start) === JSON.stringify(nextProps.data.start) &&
+    JSON.stringify(prevProps.data.end) === JSON.stringify(nextProps.data.end)
+  );
+});
 
 /**
  * TableNode Component
@@ -594,7 +680,7 @@ function ArrowNode({ data }) {
  * 
  * @param {Object} data - Contains table data, column names, and title
  */
-function TableNode({ data }) {
+const TableNode = React.memo(function TableNode({ data }) {
   const { title, headers, rows, totalRows } = data;
   
   return (
@@ -641,7 +727,15 @@ function TableNode({ data }) {
       </CardContent>
     </Card>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison function for TableNode performance optimization
+  return (
+    prevProps.data.title === nextProps.data.title &&
+    JSON.stringify(prevProps.data.headers) === JSON.stringify(nextProps.data.headers) &&
+    JSON.stringify(prevProps.data.rows) === JSON.stringify(nextProps.data.rows) &&
+    prevProps.data.totalRows === nextProps.data.totalRows
+  );
+});
 
 /**
  * TextBoxNode Component
@@ -652,7 +746,7 @@ function TableNode({ data }) {
  * @param {string} id - Unique identifier for this text node
  * @param {boolean} selected - Whether this node is currently selected
  */
-function TextBoxNode({ data, id, selected }) {
+const TextBoxNode = React.memo(function TextBoxNode({ data, id, selected }) {
   const [isEditing, setIsEditing] = useState(data.isNew || false);
   const [text, setText] = useState(data.text || '');
   const [tempText, setTempText] = useState(text);
@@ -781,7 +875,15 @@ function TextBoxNode({ data, id, selected }) {
       <div className="absolute top-0 right-0 w-8 h-8 bg-yellow-200 opacity-50 rounded-tr-xl"></div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison function for TextBoxNode performance optimization
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.selected === nextProps.selected &&
+    prevProps.data.text === nextProps.data.text &&
+    prevProps.data.isNew === nextProps.data.isNew
+  );
+});
 
 /**
  * ExpressionNode Component
@@ -796,7 +898,7 @@ function TextBoxNode({ data, id, selected }) {
  * @param {Function} setShowSettings - Opens settings panel if API key is missing
  * @param {Function} updateTokenUsage - Updates token usage metrics
  */
-function ExpressionNode({ data, id, apiKey, selectedModel, setShowSettings, updateTokenUsage }) {
+const ExpressionNode = function ExpressionNode({ data, id, apiKey, selectedModel, setShowSettings, updateTokenUsage }) {
   const [expression, setExpression] = useState(data.expression || '');
   const [result, setResult] = useState(data.result || null);
   const [isEditing, setIsEditing] = useState(data.isNew || false);
@@ -1610,7 +1712,7 @@ function ExpressionNode({ data, id, apiKey, selectedModel, setShowSettings, upda
       )}
     </Card>
   );
-}
+};
 
 /**
  * FilterDimension Component
@@ -1798,7 +1900,7 @@ function ChartTypeSelector({ dimensions = [], measures = [], currentType, onType
  * @param {Function} updateTokenUsage - Updates token usage metrics
  * @param {Function} onAddToReport - Callback to add chart to report document
  */
-function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage, onAddToReport, setReportPanelOpen }) {
+const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setShowSettings, updateTokenUsage, onAddToReport, setReportPanelOpen }) {
   const { title, figure, isFused, strategy, stats, agg, dimensions = [], measures = [], onAggChange, onShowTable, table = [] } = data;
   const [menuOpen, setMenuOpen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -1811,6 +1913,16 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
   
   // Use ref to prevent state reset during React Flow re-renders
   const aiExploreRef = useRef(false);
+  const plotlyRef = useRef(null);
+  
+  // Cleanup Plotly instance on unmount for performance
+  useEffect(() => {
+    // Completely remove cleanup to avoid any interference with Plotly's internal state
+    // Let React and Plotly handle their own cleanup naturally
+    return () => {
+      // No cleanup to avoid null reference errors
+    };
+  }, []);
   
   // Chart type switching state
   const defaultChartType = getDefaultChartType(dimensions.length, measures.length);
@@ -1959,32 +2071,50 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
     setChartType(newChartType);
     setHasUserChangedType(true); // Mark that user has manually changed chart type
     
-    // Regenerate figure with new chart type using the chart registry
-    const chartTypeConfig = CHART_TYPES[newChartType.toUpperCase()];
-    
-    // Check if we have data (either array format or heatmap format)
-    const hasData = (Array.isArray(table) && table.length > 0) || 
-                   (table && typeof table === 'object' && table.x && table.y && table.z);
-    
-    if (chartTypeConfig && hasData) {
-      const payload = {
-        table: table,
-        dimensions: dimensions,
-        measures: measures,
-        strategy: strategy ? { type: strategy } : undefined
-      };
+    try {
+      // Regenerate figure with new chart type using the chart registry
+      const chartTypeConfig = CHART_TYPES[newChartType.toUpperCase()];
       
-      const newFigure = chartTypeConfig.createFigure(Array.isArray(table) ? table : [], payload);
-      setCurrentFigure(newFigure);
-    } else {
-      console.warn('Chart type switching failed:', {
-        chartType: newChartType,
-        hasChartTypeConfig: !!chartTypeConfig,
+      // Check if we have data (either array format or heatmap format)
+      const hasData = (Array.isArray(table) && table.length > 0) || 
+                     (table && typeof table === 'object' && table.x && table.y && table.z);
+      
+      if (chartTypeConfig && hasData) {
+        const payload = {
+          table: table,
+          dimensions: dimensions,
+          measures: measures,
+          strategy: strategy ? { type: strategy } : undefined
+        };
+        
+        const newFigure = chartTypeConfig.createFigure(Array.isArray(table) ? table : [], payload);
+        
+        // Defensively sanitize the new figure before setting
+        if (newFigure && newFigure.layout) {
+          newFigure.layout = sanitizeLayout(newFigure.layout);
+        }
+        
+        setCurrentFigure(newFigure);
+      } else {
+        console.warn('Chart type switching failed:', {
+          chartType: newChartType,
+          hasChartTypeConfig: !!chartTypeConfig,
         tableLength: Array.isArray(table) ? table.length : 0,
         hasHeatmapData: table?.x && table?.y && table?.z,
         dimensions,
         measures
       });
+    }
+    } catch (error) {
+      console.error('Error changing chart type:', error);
+      // Fallback: try to keep the current figure stable
+      if (currentFigure && currentFigure.layout) {
+        const sanitizedFigure = {
+          ...currentFigure,
+          layout: sanitizeLayout(currentFigure.layout)
+        };
+        setCurrentFigure(sanitizedFigure);
+      }
     }
   }, [table, dimensions, measures, strategy]);
   
@@ -2398,36 +2528,41 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
         onClick={handleChartAreaClick}
       >
       {currentFigure && currentFigure.data && currentFigure.layout ? (
-        <Plot 
-          key={`${id}-${chartType}-${JSON.stringify(currentFigure.data?.length || 0)}`}
-          data={currentFigure.data || []} 
-          layout={sanitizeLayout(currentFigure.layout)} 
-          style={{ width: '100%', height: chartHeight }} 
-          useResizeHandler 
-          onError={(err) => {
-            console.warn('Plotly error:', err);
-          }}
-          onInitialized={(figure, graphDiv) => {
-            // Ensure proper initialization
-            if (graphDiv && graphDiv._hoverlayer) {
-              graphDiv._hoverlayer.style.pointerEvents = 'auto';
-            }
-          }}
-          onPurge={(figure, graphDiv) => {
-            // Cleanup when Plotly is purged/destroyed
-            if (graphDiv) {
-              graphDiv._hoverlayer = null;
-              graphDiv._fullLayout = null;
-              graphDiv._fullData = null;
-              graphDiv._context = null;
-              graphDiv._rehover = null;
-              graphDiv._hoversubplot = null;
-              graphDiv._hoverdata = null;
-              graphDiv._hoverpoints = null;
-              graphDiv._maindrag = null;
-              graphDiv._mainhover = null;
-            }
-          }}
+        <div className="plotly-container" style={{ pointerEvents: 'auto' }}>
+          <Plot 
+            key={`${id}-${chartType}`}
+            data={currentFigure.data || []} 
+            layout={sanitizeLayout(currentFigure.layout || {})} 
+            style={{ width: '100%', height: chartHeight }} 
+            useResizeHandler={false}
+            onError={(err) => {
+              console.warn('Plotly error:', err);
+            }}
+            onInitialized={(figure, graphDiv) => {
+              // Minimal initialization with defensive checks
+              try {
+                if (graphDiv && graphDiv._hoverlayer) {
+                  graphDiv._hoverlayer.style.pointerEvents = 'auto';
+                }
+                // Ensure layout exists on graphDiv to prevent scroll handler errors
+                if (graphDiv && !graphDiv.layout) {
+                  graphDiv.layout = sanitizeLayout(currentFigure.layout || {});
+                }
+              } catch (e) {
+                console.debug('Plotly init warning:', e);
+              }
+            }}
+            onUpdate={(figure, graphDiv) => {
+              // Defensive update handling for chart type changes
+              try {
+                if (graphDiv && figure && figure.layout) {
+                  // Ensure layout is properly sanitized during updates
+                  graphDiv.layout = sanitizeLayout(figure.layout);
+                }
+              } catch (e) {
+                console.debug('Plotly update warning:', e);
+              }
+            }}
           config={{
             displayModeBar: selected, // Only show when chart is selected
             displaylogo: false,
@@ -2469,6 +2604,7 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
             showSources: false
           }}
         />
+        </div>
       ) : (
         <div className="text-sm text-gray-500">Loading chart...</div>
       )}
@@ -2680,7 +2816,7 @@ function ChartNode({ data, id, selected, onSelect, apiKey, selectedModel, setSho
       )}
     </div>
   );
-}
+};
 
 /**
  * RichTextEditor Component
@@ -3138,7 +3274,7 @@ function UnifiedSidebar({
     },
     { 
       id: 'arrange', 
-      icon: GitBranch, 
+      icon: AlignStartVertical, 
       label: 'Auto Arrange', 
       onClick: onAutoLayout 
     },
@@ -3306,11 +3442,20 @@ function ReportItem({ item, onRemove, onUpdate }) {
 
   if (item.type === 'image') {
     return (
-      <div className="relative group border rounded-lg overflow-hidden print:border-0 print:shadow-none">
+      <div 
+        className="relative group border rounded-lg overflow-hidden print:border-0 print:shadow-none print:max-w-full print:box-border"
+        style={{ maxWidth: '100%', boxSizing: 'border-box' }}
+      >
         <img 
           src={item.imageUrl} 
           alt="Report chart"
-          className="w-full print:max-w-full print:h-auto"
+          className="w-full print:max-w-full print:h-auto print:block"
+          style={{ 
+            maxWidth: '100%', 
+            height: 'auto', 
+            display: 'block',
+            boxSizing: 'border-box'
+          }}
         />
         <button
           onClick={onRemove}
@@ -3329,15 +3474,17 @@ function ReportItem({ item, onRemove, onUpdate }) {
     // Preview mode
     return (
       <div 
-        className="relative group border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors min-h-[100px] print:border-0 print:cursor-default print:hover:bg-white print:min-h-0"
+        className="relative group border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors min-h-[100px] print:border-0 print:cursor-default print:hover:bg-white print:min-h-0 print:max-w-full print:box-border"
         onClick={() => setIsEditing(true)}
+        style={{ maxWidth: '100%', boxSizing: 'border-box' }}
       >
         {isEmpty ? (
           <p className="text-gray-400 italic print:hidden">Write here...</p>
         ) : (
           <div 
-            className="formatted-content"
-            dangerouslySetInnerHTML={{ __html: item.content }} 
+            className="formatted-content print:max-w-full print:box-border"
+            dangerouslySetInnerHTML={{ __html: item.content }}
+            style={{ maxWidth: '100%', boxSizing: 'border-box', wordWrap: 'break-word' }}
           />
         )}
         <button
@@ -3442,7 +3589,275 @@ function ReportPanel({ isOpen, onClose, reportItems, onUpdateItems }) {
   };
 
   const handlePrint = () => {
-    window.print();
+    // COMPLETELY NEW APPROACH - Clone and restructure content for print
+    const reportContent = document.getElementById('report-content');
+    
+    if (!reportContent) {
+      alert('Report content not found. Please ensure you have content in your report.');
+      return;
+    }
+
+    // Check if report has any content
+    const hasContent = reportContent.children.length > 0 && 
+      (reportContent.textContent.trim().length > 0 || reportContent.querySelectorAll('img').length > 0);
+
+    if (!hasContent) {
+      alert('Your report appears to be empty. Please add some content before exporting to PDF.');
+      return;
+    }
+
+    // Create a completely new DOM structure for printing
+    const printContainer = document.createElement('div');
+    printContainer.id = 'print-only-container';
+    printContainer.style.cssText = `
+      position: fixed;
+      top: -9999px;
+      left: -9999px;
+      width: 210mm;
+      min-height: 297mm;
+      background: white;
+      padding: 15mm;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      color: black;
+      z-index: 99999;
+    `;
+
+    // Get the actual values from the original inputs before cloning
+    const originalInputs = reportContent.querySelectorAll('input[type="text"]');
+    const inputValues = Array.from(originalInputs).map(input => ({
+      value: input.value,
+      placeholder: input.placeholder
+    }));
+    
+    console.log('Original input values:', inputValues);
+
+    // Clone the report content
+    const clonedContent = reportContent.cloneNode(true);
+    clonedContent.id = 'cloned-report-content';
+    
+    // Clean up the cloned content and add debugging
+    const buttons = clonedContent.querySelectorAll('button');
+    buttons.forEach(btn => btn.remove());
+    
+    // Debug: Log the cloned content structure
+    console.log('Cloned content HTML:', clonedContent.innerHTML.substring(0, 500));
+    
+    // Style the cloned content for print
+    clonedContent.style.cssText = `
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+    `;
+
+    // Also ensure the heading container gets proper styling
+    const headingContainer = clonedContent.querySelector('.space-y-3');
+    if (headingContainer) {
+      headingContainer.style.cssText = `
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: none;
+      `;
+      console.log('Found and styled heading container');
+    }
+
+    // Style all images in cloned content
+    const images = clonedContent.querySelectorAll('img');
+    images.forEach(img => {
+      img.style.cssText = `
+        width: 85%;
+        max-width: 85%;
+        height: auto;
+        display: block;
+        margin: 20px auto;
+        page-break-inside: avoid;
+      `;
+    });
+
+    // Style all text inputs (headings) with proper differentiation
+    const inputs = clonedContent.querySelectorAll('input[type="text"]');
+    console.log('Found inputs:', inputs.length); // Debug log
+    
+    inputs.forEach((input, index) => {
+      const span = document.createElement('div');
+      
+      // Use the captured value from original input, fallback to placeholder if empty
+      const originalData = inputValues[index] || {};
+      const text = originalData.value || originalData.placeholder || '';
+      span.textContent = text;
+      
+      console.log(`Input ${index}: value="${originalData.value}" placeholder="${originalData.placeholder}" final="${text}"`); // Debug log
+      
+      // Check if this is likely the main heading (first input or contains "Heading")
+      if (index === 0 || originalData.placeholder === 'Heading') {
+        // Main heading (first input)
+        span.style.cssText = `
+          font-size: 36pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          margin: 0 0 25px 0 !important;
+          color: red !important;
+          padding: 20px 0 !important;
+          border: 5px solid red !important;
+          text-transform: uppercase !important;
+          letter-spacing: 2px !important;
+          display: block !important;
+          width: 100% !important;
+          line-height: 1.2 !important;
+          background: #ffeeee !important;
+        `;
+        console.log('Applied main heading style to:', text);
+      } else if (index === 1 || originalData.placeholder === 'Subheading') {
+        // Subheading (second input)
+        span.style.cssText = `
+          font-size: 18pt !important;
+          font-weight: 600 !important;
+          text-align: center !important;
+          margin: 10px 0 30px 0 !important;
+          color: #555 !important;
+          font-style: italic !important;
+          padding: 5px 0 !important;
+          display: block !important;
+          width: 100% !important;
+          line-height: 1.3 !important;
+        `;
+        console.log('Applied subheading style to:', text);
+      } else {
+        // Any other inputs (fallback)
+        span.style.cssText = `
+          font-size: 14pt !important;
+          font-weight: bold !important;
+          text-align: center !important;
+          margin: 15px 0 !important;
+          color: black !important;
+          display: block !important;
+          width: 100% !important;
+        `;
+        console.log('Applied fallback style to:', text);
+      }
+      
+      // Replace the input with the styled span
+      if (input.parentNode) {
+        console.log('Replacing input with span for:', text);
+        input.parentNode.replaceChild(span, input);
+      } else {
+        console.error('No parent node found for input:', text);
+      }
+    });
+
+    // Debug: Log the modified content structure
+    console.log('Modified content after input replacement:', clonedContent.innerHTML.substring(0, 800));
+
+    // Style all formatted content
+    const formattedDivs = clonedContent.querySelectorAll('.formatted-content, div');
+    formattedDivs.forEach(div => {
+      // Skip if this div contains headings (already processed)
+      if (div.querySelector('h1, h2, h3, h4, h5, h6')) {
+        return;
+      }
+      
+      div.style.cssText = `
+        width: 100%;
+        margin: 15px 0;
+        padding: 0;
+        text-align: justify;
+        line-height: 1.6;
+        color: black;
+      `;
+    });
+
+    // Style any H1, H2, H3 tags within rich text content
+    const headings = clonedContent.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    headings.forEach(heading => {
+      const tagName = heading.tagName.toLowerCase();
+      if (tagName === 'h1') {
+        heading.style.cssText = `
+          font-size: 20pt;
+          font-weight: bold;
+          text-align: left;
+          margin: 25px 0 15px 0;
+          color: black;
+          border-bottom: 1px solid #ccc;
+          padding-bottom: 5px;
+        `;
+      } else if (tagName === 'h2') {
+        heading.style.cssText = `
+          font-size: 16pt;
+          font-weight: bold;
+          text-align: left;
+          margin: 20px 0 10px 0;
+          color: black;
+        `;
+      } else if (tagName === 'h3') {
+        heading.style.cssText = `
+          font-size: 14pt;
+          font-weight: bold;
+          text-align: left;
+          margin: 15px 0 8px 0;
+          color: black;
+        `;
+      }
+    });
+
+    // Add the print container to body
+    printContainer.appendChild(clonedContent);
+    document.body.appendChild(printContainer);
+
+    // Wait for images to load
+    const imagePromises = Array.from(images).map(img => {
+      return new Promise((resolve) => {
+        if (img.complete && img.naturalWidth > 0) {
+          resolve();
+        } else {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(() => resolve(), 2000);
+        }
+      });
+    });
+
+    Promise.all(imagePromises).then(() => {
+      // Create print-specific styles
+      const printStyles = document.createElement('style');
+      printStyles.innerHTML = `
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #print-only-container,
+          #print-only-container * {
+            visibility: visible !important;
+          }
+          #print-only-container {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            padding: 10mm !important;
+          }
+          @page {
+            size: A4;
+            margin: 0;
+          }
+        }
+      `;
+      document.head.appendChild(printStyles);
+
+      // Print
+      setTimeout(() => {
+        window.print();
+        
+        // Cleanup after print
+        setTimeout(() => {
+          document.body.removeChild(printContainer);
+          document.head.removeChild(printStyles);
+        }, 1000);
+      }, 100);
+    });
   };
 
   return (
@@ -3489,8 +3904,12 @@ function ReportPanel({ isOpen, onClose, reportItems, onUpdateItems }) {
       {/* Report Content */}
       <div 
         id="report-content" 
-        className="flex-1 overflow-y-auto p-4 space-y-4 print:p-8"
-        style={{ backgroundColor: 'var(--color-bg)' }}
+        className="flex-1 overflow-y-auto p-4 space-y-4 print:p-0"
+        style={{ 
+          backgroundColor: 'var(--color-bg)',
+          maxWidth: '100%',
+          boxSizing: 'border-box'
+        }}
       >
         {/* Heading and Subheading Inputs */}
         <div 
@@ -3690,6 +4109,8 @@ function ReactFlowWrapper() {
       setConfigStatus('success');
       setConfigMessage('Configuration loaded from previous session.');
     }
+    
+    // Remove cache clearing to avoid potential interference with active charts
   }, []);
 
   // Handler for adding items to report (must be before nodeTypes)
@@ -4191,18 +4612,29 @@ function ReactFlowWrapper() {
     });
   }, [datasetId]);
 
-  // Update nodes with current selection status
+  // Update nodes with current selection status - OPTIMIZED VERSION
+  // Only update nodes that actually changed selection state to prevent unnecessary re-renders
   const nodesWithSelection = useMemo(() => {
-    return nodes.map(node => ({
-      ...node,
-      data: {
-        ...node.data,
-        selected: selectedCharts.includes(node.id),
+    return nodes.map(node => {
+      const isSelected = selectedCharts.includes(node.id);
+      // Only create new object if selection state actually changed
+      if (node.data.selected === isSelected) {
+        return node; // Return same reference to prevent re-render
       }
-    }));
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          selected: isSelected,
+        }
+      };
+    });
   }, [nodes, selectedCharts]);
 
   function figureFromPayload(payload, chartType = null) {
+    // Temporarily disable caching to avoid potential Plotly conflicts
+    // TODO: Re-enable after resolving hover state issues
+    
     // Internal helper to ensure all figures have sanitized layouts
     const createSafeFigure = (data, layout) => ({
       data,
@@ -4745,6 +5177,9 @@ function ReactFlowWrapper() {
     setApiKey(e.target.value);
   }, []);
 
+  // Debounced version of expensive operations for better performance
+  // Note: This will be defined after applyHierarchicalLayout to avoid reference errors
+
   // Simple Custom Layout Algorithm (No ELK.js dependency)
   const applyHierarchicalLayout = useCallback(() => {
     if (nodes.length === 0) return;
@@ -4959,6 +5394,16 @@ function ReactFlowWrapper() {
       alert('Failed to arrange charts: ' + error.message);
     }
   }, [nodes, edges]);
+
+  // Debounced version of expensive operations for better performance
+  const debouncedAutoLayout = useCallback(
+    debounce(() => {
+      if (nodes.length > 0) {
+        applyHierarchicalLayout();
+      }
+    }, 300), 
+    [applyHierarchicalLayout]
+  );
 
   // Settings panel component - now using Modal from design system
   const SettingsPanel = React.memo(() => {
@@ -5375,6 +5820,16 @@ function ReactFlowWrapper() {
             panOnScroll={true}
             panOnScrollMode="free"
             preventScrolling={false}
+            // Temporarily remove performance props that might cause Plotly instability
+            // onlyRenderVisibleElements={true}  // This might be causing mount/unmount issues
+            defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+            maxZoom={3}
+            minZoom={0.1}
+            snapToGrid={false}
+            // snapGrid={[16, 16]}  // Disable snapping for now
+            deleteKeyCode="Delete"
+            multiSelectionKeyCode="Meta"
+            selectionKeyCode="Shift"
           >
             <MiniMap 
               nodeColor={getMinimapNodeColor}
