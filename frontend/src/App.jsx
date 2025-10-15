@@ -10,8 +10,9 @@ import { marked } from 'marked';
 import './tiptap-styles.css';
 
 // Backend API endpoint URL
-const API = 'http://localhost:8000';
-
+//const API = 'http://localhost:8000';
+// Replace line 13 with:
+const API = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 /**
  * Chart Figure Cache - Performance Optimization
  * Cache computed Plotly figures to prevent unnecessary re-computation

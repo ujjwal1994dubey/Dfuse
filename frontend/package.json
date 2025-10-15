@@ -1,6 +1,7 @@
 {
   "name": "dfuse-frontend",
   "version": "1.0.0",
+  "homepage": ".",
   "private": true,
   "dependencies": {
     "@radix-ui/react-select": "^2.2.6",
