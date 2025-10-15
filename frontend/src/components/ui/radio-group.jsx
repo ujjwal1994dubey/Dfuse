@@ -20,7 +20,7 @@ const RadioGroup = React.forwardRef(({
 
   return (
     <div className={cn("space-y-2", className)} ref={ref} {...props}>
-      <div className="max-h-32 overflow-y-auto border rounded-md p-2 bg-background">
+      <div className="max-h-96 overflow-y-auto border rounded-md p-2 bg-background">
         {options.length === 0 ? (
           <p className="text-sm text-muted-foreground py-2 text-center">
             No options available

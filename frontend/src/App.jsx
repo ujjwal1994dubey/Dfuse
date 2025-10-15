@@ -5,7 +5,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import { Button, Badge, Card, CardHeader, CardContent, FileUpload, RadioGroup, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui';
-import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Wand, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, AlignStartVertical, MenuIcon, Upload, Calculator, ArrowRight, Download, Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2 } from 'lucide-react';
+import { MousePointer2, MoveUpRight, Type, SquareSigma, Merge, X, ChartColumn, Funnel, SquaresExclude, Menu, BarChart, Table, Send, File, Sparkles, PieChart, Circle, TrendingUp, BarChart2, Settings, Check, Eye, EyeOff, Edit, GitBranch, AlignStartVertical, MenuIcon, Upload, Calculator, ArrowRight, Download, Bold, Italic, Underline as UnderlineIcon, Heading1, Heading2, BookOpen } from 'lucide-react';
 import { marked } from 'marked';
 import './tiptap-styles.css';
 
@@ -104,8 +104,8 @@ const DEFAULT_COLORS = {
  * Default Layout Configuration
  */
 const DEFAULT_LAYOUT = {
-  paper_bgcolor: 'transparent',
-  plot_bgcolor: 'transparent',
+  paper_bgcolor: 'white',
+  plot_bgcolor: 'white',
   gridcolor: '#E5E7EB',
   zerolinecolor: '#D1D5DB',
   font: { family: 'Inter, system-ui, sans-serif', size: 12, color: '#4B5563' },
@@ -333,7 +333,7 @@ const CHART_TYPES = {
             overlaying: 'y'
           },
           margin: { t: 20, b: 80, l: 80, r: 80 },
-          plot_bgcolor: '#fafafa',
+          plot_bgcolor: 'white',
           paper_bgcolor: 'white',
           showlegend: true,
           legend: {
@@ -424,7 +424,7 @@ const CHART_TYPES = {
             title: { text: measure, font: { size: 14, color: '#4a5568' } }
           },
           margin: { t: 20, b: 140, l: 80, r: 30 }, // Keep normal right margin
-          plot_bgcolor: '#fafafa',
+          plot_bgcolor: 'white',
           paper_bgcolor: 'white',
           showlegend: chartData.length > 1,
           legend: chartData.length > 1 ? {
@@ -1458,9 +1458,9 @@ const ExpressionNode = function ExpressionNode({ data, id, apiKey, selectedModel
               variant={aiMode ? "default" : "ghost"}
               size="icon"
               title={aiMode ? "Switch to Manual Expression" : "Switch to AI Assistant"}
-              className={aiMode ? "bg-blue-600 text-white hover:bg-blue-700" : ""}
+              className={`transition-all duration-200 ${aiMode ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm" : "text-gray-600 hover:bg-gray-100 hover:text-gray-800"}`}
             >
-              <Wand size={16} />
+              <Sparkles size={16} />
             </Button>
             <div className="relative">
             <Button
@@ -1468,6 +1468,7 @@ const ExpressionNode = function ExpressionNode({ data, id, apiKey, selectedModel
               variant="ghost"
               size="icon"
               title="Options"
+              className="text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all duration-200"
             >
               <Menu size={16} />
             </Button>
@@ -2398,10 +2399,16 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
         
         {/* Chart Type Selector - show for charts with supported dimension/measure combinations */}
         {(() => {
-          const dims = dimensions?.length || 0;
-          const meas = measures?.length || 0;
-          const supportedTypes = getSupportedChartTypes(dims, meas);
+          // Normalize dimensions and measures for chart type selection
+          // Remove 'count' from dimensions but treat 'count' measure as valid for single-var charts
+          const normalizedDimensions = dimensions?.filter(d => d !== 'count') || [];
+          const normalizedMeasures = measures || [];
           
+          const dims = normalizedDimensions.length;
+          // For single variable charts with 'count' measure, treat as 1 measure for chart type purposes
+          const meas = normalizedMeasures.length;
+          
+          const supportedTypes = getSupportedChartTypes(dims, meas);
           
           // Show selector if multiple chart types are supported
           // Now we support 3-variable charts too!
@@ -2409,8 +2416,8 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
           
           return showSelector ? (
             <ChartTypeSelector
-              dimensions={dimensions}
-              measures={measures}
+              dimensions={normalizedDimensions}
+              measures={normalizedMeasures}
               currentType={chartType}
               onTypeChange={handleChartTypeChange}
             />
@@ -2429,23 +2436,23 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
             variant={aiExploreOpen ? "default" : "ghost"}
             size="icon"
             title={aiExploreOpen ? "Close AI Explorer" : "Explore with AI"}
-            className={`p-1 ${aiExploreOpen ? "bg-blue-600 text-white hover:bg-blue-700" : "hover:bg-gray-100"}`}
+            className={`transition-all duration-200 ${aiExploreOpen ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm" : "text-gray-600 hover:bg-gray-100 hover:text-gray-800"}`}
             style={{ zIndex: 1000, position: 'relative' }}
           >
-            <Wand size={16} />
+            <Sparkles size={16} />
           </Button>
           
           {/* Chart Options Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              className="p-1 hover:bg-gray-100 rounded"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 w-10 text-gray-600 hover:bg-gray-100 hover:text-gray-800"
               onClick={(e) => {
                 e.stopPropagation();
                 setMenuOpen(!menuOpen);
               }}
               style={{ zIndex: 1000, position: 'relative' }}
             >
-              <Menu size={16} className="text-gray-600" />
+              <Menu size={16} />
             </DropdownMenuTrigger>
             
             <DropdownMenuContent 
@@ -2639,7 +2646,6 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <Wand size={16} className="text-blue-600" />
                 Explore with AI
               </div>
               <Button
@@ -2647,10 +2653,10 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
                 disabled={aiLoading}
                 variant="ghost"
                 size="sm"
-                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 h-auto"
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 h-auto transition-all duration-200"
                 title="Generate automatic insights for this chart"
               >
-                <Wand className="w-4 h-4 mr-1" />
+                <Sparkles className="w-4 h-4 mr-1" />
                 Insights
               </Button>
             </div>
@@ -2665,7 +2671,7 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
                     handleAIExplore();
                   }
                 }}
-                placeholder="e.g., show top 5 tiger reserves, percentage change from 2018 to 2023"
+                placeholder="Use AI to filter data, aggregate data, calculate new columns etc"
                 className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 disabled={aiLoading}
               />
@@ -2687,14 +2693,12 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
             {aiResult && (
               <div className={`p-3 rounded-md text-sm ${
                 aiResult.success 
-                  ? 'bg-blue-50 border border-blue-200 text-blue-800' 
+                  ? 'bg-teal-50 border border-teal-200 text-teal-800' 
                   : 'bg-red-50 border border-red-200 text-red-800'
               }`}>
                 <div className="flex items-start gap-2">
                   {aiResult.success ? (
-                    <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-          </div>
+                    <Sparkles className="w-4 h-4 text-teal-600 flex-shrink-0 mt-0.5" />
                   ) : (
                     <div className="w-4 h-4 rounded-full bg-red-600 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
@@ -2702,9 +2706,10 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
                   )}
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
-                      <div className="font-medium">
-                        {aiResult.success ? 'AI Analysis:' : 'Error:'}
-                      </div>
+                      {/* Remove AI Analysis header for success, keep Error header */}
+                      {!aiResult.success && (
+                        <div className="font-medium">Error:</div>
+                      )}
                       {/* Toggle Button - only show if we have table data */}
                       {aiResult.success && aiResult.has_table && (
                         <div className="flex items-center gap-1">
@@ -2712,7 +2717,7 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
                             onClick={() => setShowTableView(false)}
                             className={`px-2 py-1 text-xs rounded transition-colors ${
                               !showTableView 
-                                ? 'bg-blue-600 text-white' 
+                                ? 'bg-teal-600 text-white' 
                                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                             }`}
                           >
@@ -2722,7 +2727,7 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
                             onClick={() => setShowTableView(true)}
                             className={`px-2 py-1 text-xs rounded transition-colors ${
                               showTableView 
-                                ? 'bg-blue-600 text-white' 
+                                ? 'bg-teal-600 text-white' 
                                 : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                             }`}
                           >
@@ -2754,9 +2759,8 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
                         {/* AI Analysis Details - show code_steps if available */}
                         {(aiResult.code_steps && aiResult.code_steps.length > 0) && (
                           <details className="mt-3">
-                            <summary className="cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                              <span>🐍 View Python Code</span>
-                              <span className="text-xs">(verification & reproducibility)</span>
+                            <summary className="cursor-pointer text-xs font-medium text-teal-600 hover:text-teal-800 flex items-center gap-1">
+                              <span>View Python Code</span>
                             </summary>
                             <div className="mt-2 p-3 bg-gray-900 rounded text-xs space-y-3">
                               {aiResult.code_steps.map((code, idx) => (
@@ -2793,11 +2797,7 @@ const ChartNode = function ChartNode({ data, id, selected, onSelect, apiKey, sel
                       </div>
                     )}
                     </div>
-                    {aiResult.dataset_info && (
-                      <div className="text-xs opacity-75 mt-2">
-                        {aiResult.dataset_info}
-                      </div>
-                    )}
+                    {/* Removed dataset info display */}
                   </div>
                 </div>
               </div>
@@ -4059,6 +4059,7 @@ function ReactFlowWrapper() {
 
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
+  const [showLearningModal, setShowLearningModal] = useState(false);
   
   // Sidebar panel states
   const [uploadPanelOpen, setUploadPanelOpen] = useState(false);
@@ -4244,6 +4245,25 @@ function ReactFlowWrapper() {
   
   const onEdgesChange = useCallback(
     (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+    []
+  );
+
+  // Handle node deletions (required for delete key to work)
+  const onNodesDelete = useCallback(
+    (deletedNodes) => {
+      console.log('🗑️ Deleting nodes:', deletedNodes.map(n => n.id));
+      // The actual deletion is handled by onNodesChange, but this callback enables the delete key
+      setNodes((nds) => nds.filter(node => !deletedNodes.find(dn => dn.id === node.id)));
+    },
+    []
+  );
+
+  // Handle edge deletions
+  const onEdgesDelete = useCallback(
+    (deletedEdges) => {
+      console.log('Deleting edges:', deletedEdges.map(e => e.id));
+      setEdges((eds) => eds.filter(edge => !deletedEdges.find(de => de.id === edge.id)));
+    },
     []
   );
   
@@ -4709,7 +4729,7 @@ function ReactFlowWrapper() {
                 overlaying: 'y'
               },
               margin: { t: 20, b: 160, l: 80, r: 80 }, // Increased bottom margin even more for legend
-              plot_bgcolor: '#fafafa',
+              plot_bgcolor: 'white',
               paper_bgcolor: 'white',
               showlegend: true,
               legend: {
@@ -4755,7 +4775,7 @@ function ReactFlowWrapper() {
           },
           barmode: 'group', 
           margin: { t: 20, b: measureKeys.length > 1 ? 140 : 80, l: 80, r: 30 }, // Keep normal right margin
-          plot_bgcolor: '#fafafa',
+          plot_bgcolor: 'white',
           paper_bgcolor: 'white',
           showlegend: measureKeys.length > 1,
           legend: measureKeys.length > 1 ? {
@@ -4805,7 +4825,7 @@ function ReactFlowWrapper() {
           xaxis: { title: { text: xKey, font: { size: 14, color: '#4a5568' } }, tickangle: -45 },
           yaxis: { title: { text: m, font: { size: 14, color: '#4a5568' } } },
           margin: { t: 20, b: 80, l: 80, r: 30 }, // Reduced top margin
-          plot_bgcolor: '#fafafa',
+          plot_bgcolor: 'white',
           paper_bgcolor: 'white'
       });
     }
@@ -4858,7 +4878,7 @@ function ReactFlowWrapper() {
             }
           },
           margin: { t: 20, b: 100, l: 80, r: 30 }, // Reduced top margin, increased bottom for legend
-          plot_bgcolor: '#fafafa',
+          plot_bgcolor: 'white',
           paper_bgcolor: 'white',
           showlegend: true,
           legend: {
@@ -4906,7 +4926,10 @@ function ReactFlowWrapper() {
       activeChartType = CHART_TYPES[chartType.toUpperCase()];
     } else {
       // Get default chart type for this dimension/measure combination
-      activeChartType = getDefaultChartType(dims, measures);
+      // Pass counts, not arrays, and normalize 'count' handling
+      const normalizedDims = (payload.dimensions || []).filter(d => d !== 'count');
+      const normalizedMeas = payload.measures || [];
+      activeChartType = getDefaultChartType(normalizedDims.length, normalizedMeas.length);
     }
     
     // Create standardized payload for chart type functions
@@ -5041,7 +5064,7 @@ function ReactFlowWrapper() {
             xaxis: { title: { text: selectedMeasure } }, 
             yaxis: { title: { text: 'Count' } }, 
             margin: { t: 20, b: 60, l: 60, r: 30 }, 
-            plot_bgcolor: '#fafafa', 
+            plot_bgcolor: 'white', 
             paper_bgcolor: 'white',
             showlegend: false,
             legend: undefined
@@ -5080,6 +5103,12 @@ function ReactFlowWrapper() {
         if (!res.ok) throw new Error(await res.text());
         const { labels, counts } = await res.json();
         
+        // Create table data for chart type switching
+        const tableData = labels.map((label, i) => ({
+          [selectedDimension]: label,
+          count: counts[i]
+        }));
+        
         // Register server-side chart for fusion
         try {
           const body = { 
@@ -5106,7 +5135,7 @@ function ReactFlowWrapper() {
             xaxis: { title: { text: selectedDimension } }, 
             yaxis: { title: { text: 'Count' } }, 
             margin: { t: 20, b: 80, l: 60, r: 30 }, 
-            plot_bgcolor: '#fafafa', 
+            plot_bgcolor: 'white', 
             paper_bgcolor: 'white',
             showlegend: false,
             legend: undefined
@@ -5127,6 +5156,7 @@ function ReactFlowWrapper() {
             agg: 'count', 
             dimensions: [selectedDimension], 
             measures: ['count'], 
+            table: tableData,  // Add table data for chart type switching
             datasetId: datasetId, // Store dataset ID for aggregation updates
             onAggChange: updateChartAgg 
           } 
@@ -5664,6 +5694,185 @@ function ReactFlowWrapper() {
     );
   });
 
+  // Learning Modal component with instruction panel
+  const LearningModal = React.memo(() => {
+    const sampleInstructions = `
+      <div>
+        <h1>Welcome to D.Fuse - Your Data Visualization Playground!</h1>
+        <p style="font-size: 16px; color: #6b7280; margin-bottom: 24px;">Transform your data into stunning insights with our AI-powered platform. Let's get you started on your visualization journey!</p>
+        
+        <div style="background: #f0f9ff; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #3b82f6;">
+          <p><strong>What makes D.Fuse special?</strong> Infinite canvas • AI-powered insights • Smart chart fusion • Effortless reporting</p>
+        </div>
+
+        <h2>Step 1: Simple Chart Creation</h2>
+        <p>Creating beautiful charts has never been easier! Here's how to get started:</p>
+        <ol>
+          <li><strong>Upload your data:</strong> Click the <em>Upload Panel</em> in the left sidebar</li>
+          <li><strong>Supported formats:</strong> CSV, Excel (.xlsx), JSON, or paste directly</li>
+          <li><strong>Instant preview:</strong> Watch your data transform into charts automatically</li>
+          <li><strong>Choose your style:</strong> Select from 10+ chart types (bar, line, pie, scatter, heatmap, and more)</li>
+        </ol>
+        <div style="background: #f0fdf4; padding: 12px; border-radius: 6px; margin: 12px 0;">
+          <p style="margin: 0;"><strong>Pro Tip:</strong> Drag and drop your files directly onto the canvas for instant chart creation!</p>
+        </div>
+
+        <h2>Step 2: Chart Fusion Magic</h2>
+        <p>Combine multiple charts to create powerful composite visualizations:</p>
+        <ul>
+          <li><strong>Multi-select:</strong> Hold Ctrl/Cmd and click to select multiple charts</li>
+          <li><strong>Fusion modes:</strong> Overlay, side-by-side, or stacked arrangements</li>
+          <li><strong>Smart alignment:</strong> Charts automatically align for perfect presentation</li>
+          <li><strong>Unified styling:</strong> Apply consistent colors and themes across fused charts</li>
+        </ul>
+
+        <h2>Step 3: Infinite Canvas Freedom</h2>
+        <p>Break free from traditional dashboards with our boundless workspace:</p>
+        <ul>
+          <li><strong>Zoom & Pan:</strong> Navigate seamlessly across your visualization space</li>
+          <li><strong>Flexible Layout:</strong> Position charts anywhere - no grid restrictions!</li>
+          <li><strong>Auto-arrange:</strong> Use our smart layout tools for instant organization</li>
+          <li><strong>Mini-map:</strong> Never lose track of your work with the overview panel</li>
+          <li><strong>Responsive design:</strong> Everything scales beautifully at any zoom level</li>
+        </ul>
+
+        <h2>Step 4: AI Insights & Exploration</h2>
+        <p>Let artificial intelligence supercharge your data analysis:</p>
+        
+        <h3>AI Insights</h3>
+        <ul>
+          <li><strong>Automatic patterns:</strong> AI identifies trends, outliers, and correlations</li>
+          <li><strong>Smart suggestions:</strong> Get recommendations for better chart types</li>
+          <li><strong>Data quality alerts:</strong> Spot missing values and inconsistencies</li>
+          <li><strong>Statistical summaries:</strong> Instant mean, median, mode calculations</li>
+        </ul>
+
+        <h3>AI Exploration</h3>
+        <ul>
+          <li><strong>Natural language queries:</strong> Ask "Show me sales by region" and watch it happen</li>
+          <li><strong>Hypothesis testing:</strong> AI suggests relationships to explore</li>
+          <li><strong>Predictive modeling:</strong> Generate forecasts and trend projections</li>
+          <li><strong>Narrative generation:</strong> AI writes insights in plain English</li>
+        </ul>
+
+        <div style="background: #fef3c7; padding: 12px; border-radius: 6px; margin: 12px 0; border-left: 4px solid #f59e0b;">
+          <p style="margin: 0;"><strong>Setup Required:</strong> Configure your AI API key in <em>Settings</em> to unlock these powerful features!</p>
+        </div>
+
+        <h2>Step 5: Professional Report Generation</h2>
+        <p>Transform your analysis into polished, shareable reports:</p>
+        <ul>
+          <li><strong>Rich text editor:</strong> Add formatted text, headers, and annotations</li>
+          <li><strong>Drag & drop:</strong> Include any chart with a simple click</li>
+          <li><strong>Executive summaries:</strong> AI generates key findings automatically</li>
+          <li><strong>Multiple formats:</strong> Export as PDF, PowerPoint, or web reports</li>
+          <li><strong>Collaborative editing:</strong> Share and edit reports in real-time</li>
+        </ul>
+
+        <h2>Quick Actions & Shortcuts</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
+          <div>
+            <h4>Essential Shortcuts</h4>
+            <ul style="font-size: 14px;">
+              <li><strong>Space + Drag:</strong> Pan canvas</li>
+              <li><strong>Ctrl/Cmd + A:</strong> Select all</li>
+              <li><strong>Ctrl/Cmd + Z:</strong> Undo action</li>
+              <li><strong>Delete:</strong> Remove selection</li>
+              <li><strong>Ctrl/Cmd + D:</strong> Duplicate</li>
+            </ul>
+          </div>
+          <div>
+            <h4>Power Tools</h4>
+            <ul style="font-size: 14px;">
+              <li><strong>Auto-layout:</strong> Smart arrangement</li>
+              <li><strong>Batch styling:</strong> Apply themes to multiple charts</li>
+              <li><strong>Data refresh:</strong> Update all charts instantly</li>
+              <li><strong>Version history:</strong> Track your changes</li>
+            </ul>
+          </div>
+        </div>
+
+        <h2>Learning Path</h2>
+        <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0;">
+          <p><strong>New to data visualization?</strong> Follow this learning path:</p>
+          <ol>
+            <li>Start with simple charts (bar, line, pie)</li>
+            <li>Experiment with chart fusion</li>
+            <li>Enable AI insights for your data</li>
+            <li>Create your first report</li>
+            <li>Explore advanced features and automation</li>
+          </ol>
+        </div>
+
+        <h2>Resources & Support</h2>
+        <div>
+          <h4>Learning</h4>
+          <ul>
+            <li><a href="#" style="color: #3b82f6; text-decoration: underline;">Complete User Guide</a></li>
+            <li><a href="#" style="color: #3b82f6; text-decoration: underline;">Video Tutorials</a></li>
+            <li><a href="#" style="color: #3b82f6; text-decoration: underline;">Sample Datasets</a></li>
+          </ul>
+        </div>
+
+        <div style="background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%); color: white; padding: 16px; border-radius: 8px; margin: 24px 0;">
+          <p style="margin: 0; text-align: center;"><strong>Ready to create amazing visualizations?</strong><br/>
+          Start by uploading your first dataset and let D.Fuse work its magic!</p>
+        </div>
+
+        <hr style="margin: 24px 0; border: 1px solid #e5e7eb;" />
+        <p style="text-align: center; color: #6b7280;"><em>Questions? Reach out to our support team at <strong>support@dfuse.com</strong> • We're here to help you succeed!</em></p>
+      </div>
+    `;
+
+    return (
+      <Modal 
+        isOpen={showLearningModal} 
+        onClose={() => setShowLearningModal(false)}
+        size="lg"
+      >
+        {/* Modal Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 
+            className="font-semibold flex items-center gap-2"
+            style={{ 
+              fontSize: 'var(--font-size-xl)',
+              color: 'var(--color-text-primary)' 
+            }}
+          >
+            <BookOpen size={20} />
+            User Instructions
+          </h3>
+          <button 
+            onClick={() => setShowLearningModal(false)}
+            className="p-1 hover:bg-gray-100 rounded transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Instruction Panel */}
+        <div 
+          className="max-h-96 overflow-y-auto border rounded-lg p-4 bg-gray-50"
+          style={{ 
+            maxHeight: '60vh',
+            fontSize: 'var(--font-size-sm)',
+            lineHeight: '1.6'
+          }}
+        >
+          <div 
+            className="formatted-content prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: sampleInstructions }}
+            style={{ 
+              maxWidth: '100%', 
+              boxSizing: 'border-box', 
+              wordWrap: 'break-word' 
+            }}
+          />
+        </div>
+      </Modal>
+    );
+  });
+
   return (
     <div className="w-screen h-screen flex">
       {/* Unified Sidebar */}
@@ -5791,6 +6000,8 @@ function ReactFlowWrapper() {
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
+            onNodesDelete={onNodesDelete}
+            onEdgesDelete={onEdgesDelete}
             onPaneClick={onPaneClick}
             onNodeClick={(event, node) => {
               // Prevent React Flow from handling node clicks when clicking on interactive elements
@@ -5872,6 +6083,18 @@ function ReactFlowWrapper() {
             }}
           >
             <IconButton
+              icon={BookOpen}
+              onClick={() => setShowLearningModal(!showLearningModal)}
+              active={showLearningModal}
+              label="User Instructions"
+              size="sm"
+              className="shadow-sm"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                border: '1px solid var(--color-border)'
+              }}
+            />
+            <IconButton
               icon={Settings}
               onClick={() => setShowSettings(!showSettings)}
               active={showSettings}
@@ -5915,6 +6138,9 @@ function ReactFlowWrapper() {
           />
         </div>
       </div>
+      
+      {/* Learning Modal */}
+      {showLearningModal && <LearningModal />}
     </div>
   );
 }
