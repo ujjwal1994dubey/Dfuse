@@ -4059,7 +4059,11 @@ function ReactFlowWrapper() {
 
   // Settings state
   const [showSettings, setShowSettings] = useState(false);
-  const [showLearningModal, setShowLearningModal] = useState(false);
+  const [showLearningModal, setShowLearningModal] = useState(() => {
+    // Show learning modal by default for first-time users
+    const hasSeenInstructions = localStorage.getItem('dfuse_instructions_seen');
+    return !hasSeenInstructions;
+  });
   
   // Sidebar panel states
   const [uploadPanelOpen, setUploadPanelOpen] = useState(false);
@@ -5696,138 +5700,195 @@ function ReactFlowWrapper() {
 
   // Learning Modal component with instruction panel
   const LearningModal = React.memo(() => {
-    const sampleInstructions = `
-      <div>
-        <h1>Welcome to D.Fuse - Your Data Visualization Playground!</h1>
-        <p style="font-size: 16px; color: #6b7280; margin-bottom: 24px;">Transform your data into stunning insights with our AI-powered platform. Let's get you started on your visualization journey!</p>
+    // Handle closing the modal and marking instructions as seen
+    const handleCloseModal = () => {
+      localStorage.setItem('dfuse_instructions_seen', 'true');
+      setShowLearningModal(false);
+    };
+    // Flexible instructions structure - easy to edit and maintain
+    const instructions = {
+      title: "Welcome to D.Fuse - Your Data Visualization Playground!",
+      subtitle: "Transform your data into stunning insights with our AI-powered platform with Infinite canvas • AI-powered insights • Smart chart fusion • Effortless reporting",
+      videoIframe: '<iframe width="560" height="315" src="https://www.youtube.com/embed/rDHrFO6vyCE?si=YUNiEx5C_p3rnBt7&amp;controls=0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>',
+      
+      sections: [
+        {
+          title: "Setup",
+          items: [
+            {
+              title: "Enter Your Gemini API Key",
+              content: [
+                "- Go to the Settings panel.",
+                "- Paste your Gemini API key in the designated field.",
+                "- This securely connects Dfuse to your preferred AI service."
+              ]
+            },
+            {
+              title: "Select Your AI Model",
+              content: [
+                "- Choose from the available Gemini AI models using the dropdown menu."
+              ]
+            },
+            {
+              title: "Confirm Your Connection",
+              content: [
+                "- After saving your settings, look for a confirmation message.",
+                "- This indicates your connection is active and your model is ready for use."
+              ]
+            },
+            {
+              title: "Track Token Usage",
+              content: [
+                "- Monitor your AI token consumption directly within the Settings panel."
+              ]
+            }
+          ]
+        },
         
-        <div style="background: #f0f9ff; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #3b82f6;">
-          <p><strong>What makes D.Fuse special?</strong> Infinite canvas • AI-powered insights • Smart chart fusion • Effortless reporting</p>
-        </div>
-
-        <h2>Step 1: Simple Chart Creation</h2>
-        <p>Creating beautiful charts has never been easier! Here's how to get started:</p>
-        <ol>
-          <li><strong>Upload your data:</strong> Click the <em>Upload Panel</em> in the left sidebar</li>
-          <li><strong>Supported formats:</strong> CSV, Excel (.xlsx), JSON, or paste directly</li>
-          <li><strong>Instant preview:</strong> Watch your data transform into charts automatically</li>
-          <li><strong>Choose your style:</strong> Select from 10+ chart types (bar, line, pie, scatter, heatmap, and more)</li>
-        </ol>
-        <div style="background: #f0fdf4; padding: 12px; border-radius: 6px; margin: 12px 0;">
-          <p style="margin: 0;"><strong>Pro Tip:</strong> Drag and drop your files directly onto the canvas for instant chart creation!</p>
-        </div>
-
-        <h2>Step 2: Chart Fusion Magic</h2>
-        <p>Combine multiple charts to create powerful composite visualizations:</p>
-        <ul>
-          <li><strong>Multi-select:</strong> Hold Ctrl/Cmd and click to select multiple charts</li>
-          <li><strong>Fusion modes:</strong> Overlay, side-by-side, or stacked arrangements</li>
-          <li><strong>Smart alignment:</strong> Charts automatically align for perfect presentation</li>
-          <li><strong>Unified styling:</strong> Apply consistent colors and themes across fused charts</li>
-        </ul>
-
-        <h2>Step 3: Infinite Canvas Freedom</h2>
-        <p>Break free from traditional dashboards with our boundless workspace:</p>
-        <ul>
-          <li><strong>Zoom & Pan:</strong> Navigate seamlessly across your visualization space</li>
-          <li><strong>Flexible Layout:</strong> Position charts anywhere - no grid restrictions!</li>
-          <li><strong>Auto-arrange:</strong> Use our smart layout tools for instant organization</li>
-          <li><strong>Mini-map:</strong> Never lose track of your work with the overview panel</li>
-          <li><strong>Responsive design:</strong> Everything scales beautifully at any zoom level</li>
-        </ul>
-
-        <h2>Step 4: AI Insights & Exploration</h2>
-        <p>Let artificial intelligence supercharge your data analysis:</p>
+        {
+          title: "Feature 1 — Create Charts Easily",
+          items: [
+            {
+              title: "Upload Your Data",
+              content: [
+                "- Click the Upload Data button on the left action bar.",
+                "- Select and upload your CSV file."
+              ]
+            },
+            {
+              title: "Select Variables",
+              content: [
+                "- Choose variables from the Variables panel.",
+                "- You can select, a single dimension or measure, or One dimension and one measure together",
+              ]
+            },
+            {
+              title: "View Your Chart",
+              content: [
+                "A chart based on your selected variables automatically appears on the canvas."
+              ]
+            }
+          ],
+          tip: "You can change the chart's aggregation type (Sum, Average, Min, Max) using the menu icon on the chart."
+        },
         
-        <h3>AI Insights</h3>
-        <ul>
-          <li><strong>Automatic patterns:</strong> AI identifies trends, outliers, and correlations</li>
-          <li><strong>Smart suggestions:</strong> Get recommendations for better chart types</li>
-          <li><strong>Data quality alerts:</strong> Spot missing values and inconsistencies</li>
-          <li><strong>Statistical summaries:</strong> Instant mean, median, mode calculations</li>
-        </ul>
+        {
+          title: "Feature 2 — Fuse Charts Together",
+          content: [
+            "You can fuse:",
+            "• Two single-variable charts (one dimension + one measure each), or",
+            "• Two two-variable charts that share a common variable.",
+            "",
+            "To fuse charts:",
+            "- Select two charts by clicking on their titles.",
+            "- Click the Fuse icon on the left action bar.",
+            "- A fused chart will be created on the canvas.",
+            "- Change its chart type anytime from the top-right corner menu."
+          ]
+        },
+        
+        {
+          title: "Feature 3 — Ask AI for Insights",
+          items: [
+            {
+              title: "Use AI to Analyze or Transform Data",
+              content: [
+                "- Find the \"Explore with AI\" box below each chart.",
+                "- Type a query or command in plain English, for example: show top 5 products, calculate a metric, filter by a dimension etc",
+                "- Press Enter and AI gives you the anwser along with the code."
+              ]
+            },
+            {
+              title: "2. Generate AI Insights Instantly",
+              content: [
+                "- Next to the \"Explore with AI\" box, click the \"Insights\" button.",
+                "- Dfuse will automatically generate key patterns, outliers, and smart summaries — no typing needed."
+              ]
+            }
+          ]
+        },
+        
+        {
+          title: "Feature 4 — Organize Your Charts",
+          items: [
+            {
+              title: "Auto Arrange",
+              content: [
+                "- Access Auto Arrange from the left action bar.",
+                "- With one click, your dashboard neatly aligns charts — making comparisons and patterns easier to spot."
+              ]
+            },
+            {
+              title: "Arrow Tool",
+              content: [
+                "- Use the Arrow Tool from the left action bar.",
+                "- Draw arrows between charts or notes to visualize relationships, highlight flows, and tell compelling data stories."
+              ]
+            },
+            {
+              title: "Sticky Notes",
+              content: [
+                "- Add Sticky Notes from the left action bar.",
+                "- Use them to jot quick thoughts, findings, or action items next to charts — keeping your ideas visible and connected."
+              ]
+            }
+          ]
+        },
+        
+        {
+          title: "Feature 5 — Create and Share Reports",
+          items: [
+            {
+              title: "Add Charts to Report",
+              content: [
+                "- From any chart, click \"Add to Report\" in its menu.",
+                "- The chart and its AI-generated insights are instantly added to your Report Workspace."
+              ]
+            },
+            {
+              title: "Review Your Report",
+              content: [
+                "- Each added chart appears with its main insights.",
+                "- Build your narrative step by step — chart by chart."
+              ]
+            },
+            {
+              title: "Format and Personalize",
+              content: [
+                "- Enhance your report by adding:",
+                "- Headings for structure",
+                "- Text blocks for explanations or conclusions",
+                "- Images for visual context",
+                "- All edits happen live for real-time refinement."
+              ]
+            },
+            {
+              title: "Download as PDF",
+              content: [
+                "-When ready, click Download to export your report as a PDF — ideal for presentations, sharing, or printing."
+              ]
+            }
+          ]
+        }
+      ]
+    };
 
-        <h3>AI Exploration</h3>
-        <ul>
-          <li><strong>Natural language queries:</strong> Ask "Show me sales by region" and watch it happen</li>
-          <li><strong>Hypothesis testing:</strong> AI suggests relationships to explore</li>
-          <li><strong>Predictive modeling:</strong> Generate forecasts and trend projections</li>
-          <li><strong>Narrative generation:</strong> AI writes insights in plain English</li>
-        </ul>
-
-        <div style="background: #fef3c7; padding: 12px; border-radius: 6px; margin: 12px 0; border-left: 4px solid #f59e0b;">
-          <p style="margin: 0;"><strong>Setup Required:</strong> Configure your AI API key in <em>Settings</em> to unlock these powerful features!</p>
-        </div>
-
-        <h2>Step 5: Professional Report Generation</h2>
-        <p>Transform your analysis into polished, shareable reports:</p>
-        <ul>
-          <li><strong>Rich text editor:</strong> Add formatted text, headers, and annotations</li>
-          <li><strong>Drag & drop:</strong> Include any chart with a simple click</li>
-          <li><strong>Executive summaries:</strong> AI generates key findings automatically</li>
-          <li><strong>Multiple formats:</strong> Export as PDF, PowerPoint, or web reports</li>
-          <li><strong>Collaborative editing:</strong> Share and edit reports in real-time</li>
-        </ul>
-
-        <h2>Quick Actions & Shortcuts</h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
-          <div>
-            <h4>Essential Shortcuts</h4>
-            <ul style="font-size: 14px;">
-              <li><strong>Space + Drag:</strong> Pan canvas</li>
-              <li><strong>Ctrl/Cmd + A:</strong> Select all</li>
-              <li><strong>Ctrl/Cmd + Z:</strong> Undo action</li>
-              <li><strong>Delete:</strong> Remove selection</li>
-              <li><strong>Ctrl/Cmd + D:</strong> Duplicate</li>
-            </ul>
-          </div>
-          <div>
-            <h4>Power Tools</h4>
-            <ul style="font-size: 14px;">
-              <li><strong>Auto-layout:</strong> Smart arrangement</li>
-              <li><strong>Batch styling:</strong> Apply themes to multiple charts</li>
-              <li><strong>Data refresh:</strong> Update all charts instantly</li>
-              <li><strong>Version history:</strong> Track your changes</li>
-            </ul>
-          </div>
-        </div>
-
-        <h2>Learning Path</h2>
-        <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p><strong>New to data visualization?</strong> Follow this learning path:</p>
-          <ol>
-            <li>Start with simple charts (bar, line, pie)</li>
-            <li>Experiment with chart fusion</li>
-            <li>Enable AI insights for your data</li>
-            <li>Create your first report</li>
-            <li>Explore advanced features and automation</li>
-          </ol>
-        </div>
-
-        <h2>Resources & Support</h2>
-        <div>
-          <h4>Learning</h4>
-          <ul>
-            <li><a href="#" style="color: #3b82f6; text-decoration: underline;">Complete User Guide</a></li>
-            <li><a href="#" style="color: #3b82f6; text-decoration: underline;">Video Tutorials</a></li>
-            <li><a href="#" style="color: #3b82f6; text-decoration: underline;">Sample Datasets</a></li>
-          </ul>
-        </div>
-
-        <div style="background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%); color: white; padding: 16px; border-radius: 8px; margin: 24px 0;">
-          <p style="margin: 0; text-align: center;"><strong>Ready to create amazing visualizations?</strong><br/>
-          Start by uploading your first dataset and let D.Fuse work its magic!</p>
-        </div>
-
-        <hr style="margin: 24px 0; border: 1px solid #e5e7eb;" />
-        <p style="text-align: center; color: #6b7280;"><em>Questions? Reach out to our support team at <strong>support@dfuse.com</strong> • We're here to help you succeed!</em></p>
-      </div>
-    `;
+    // Helper function to render instruction content
+    const renderContent = (content) => {
+      if (Array.isArray(content)) {
+        return content.map((item, index) => (
+          <p key={index} className="mb-2 text-sm leading-relaxed">
+            {item}
+          </p>
+        ));
+      }
+      return <p className="mb-2 text-sm leading-relaxed">{content}</p>;
+    };
 
     return (
       <Modal 
         isOpen={showLearningModal} 
-        onClose={() => setShowLearningModal(false)}
+        onClose={handleCloseModal}
         size="lg"
       >
         {/* Modal Header */}
@@ -5843,7 +5904,7 @@ function ReactFlowWrapper() {
             User Instructions
           </h3>
           <button 
-            onClick={() => setShowLearningModal(false)}
+            onClick={handleCloseModal}
             className="p-1 hover:bg-gray-100 rounded transition-colors"
           >
             <X size={20} />
@@ -5859,15 +5920,79 @@ function ReactFlowWrapper() {
             lineHeight: '1.6'
           }}
         >
-          <div 
-            className="formatted-content prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: sampleInstructions }}
-            style={{ 
-              maxWidth: '100%', 
-              boxSizing: 'border-box', 
-              wordWrap: 'break-word' 
-            }}
-          />
+          <div className="prose prose-sm max-w-none">
+            {/* Title and Introduction */}
+            <h1 className="text-xl font-bold text-gray-900 mb-3">{instructions.title}</h1>
+            <p className="text-gray-600 mb-4 leading-relaxed">{instructions.subtitle}</p>
+            
+            {/* YouTube Tutorial Video */}
+            <div className="mb-6 text-center">
+              <div 
+                className="inline-block rounded-lg overflow-hidden shadow-lg"
+                style={{ maxWidth: '100%' }}
+              >
+                <div 
+                  dangerouslySetInnerHTML={{ __html: instructions.videoIframe }}
+                  style={{
+                    width: '100%',
+                    maxWidth: '560px',
+                    aspectRatio: '16/9'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Sections */}
+            {instructions.sections.map((section, sectionIndex) => (
+              <div key={sectionIndex} className="mb-8">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
+                  {section.title}
+                </h2>
+                
+                {/* Section with items */}
+                {section.items && section.items.map((item, itemIndex) => (
+                  <div key={itemIndex} className="mb-4">
+                    <h4 className="font-medium text-gray-700 mb-2">{item.title}</h4>
+                    <div className="ml-4">
+                      {renderContent(item.content)}
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Section with direct content */}
+                {section.content && (
+                  <div className="mb-4">
+                    {renderContent(section.content)}
+                  </div>
+                )}
+                
+                {/* Tip box */}
+                {section.tip && (
+                  <div className="bg-green-50 border border-green-200 rounded p-3 mt-4">
+                    <p className="text-sm text-green-800 font-medium mb-0">
+                      Tip: {section.tip}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Call to Action */}
+            <div 
+              className="text-center p-4 rounded-lg text-white mb-6"
+              style={{
+                background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)'
+              }}
+            >
+              <p className="font-semibold mb-1">Ready to create amazing visualizations?</p>
+              <p className="text-sm opacity-90">Start by uploading your first dataset and let D.Fuse work its magic!</p>
+            </div>
+
+            {/* Support */}
+            <div className="text-center text-gray-500 text-sm border-t border-gray-200 pt-4">
+              <p>Questions? Reach out at <strong>dubey.ujjjwal1994@gmail.com</strong></p>
+            </div>
+          </div>
         </div>
       </Modal>
     );
@@ -6084,7 +6209,16 @@ function ReactFlowWrapper() {
           >
             <IconButton
               icon={BookOpen}
-              onClick={() => setShowLearningModal(!showLearningModal)}
+              onClick={() => {
+                if (showLearningModal) {
+                  // If modal is open, close it and mark as seen
+                  localStorage.setItem('dfuse_instructions_seen', 'true');
+                  setShowLearningModal(false);
+                } else {
+                  // If modal is closed, open it
+                  setShowLearningModal(true);
+                }
+              }}
               active={showLearningModal}
               label="User Instructions"
               size="sm"
